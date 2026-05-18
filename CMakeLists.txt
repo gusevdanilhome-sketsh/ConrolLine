@@ -4,6 +4,9 @@ project(ConrolLine LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(EIGEN_ROOT "C:/Project/Libs/eigen-3.4.0")
+include_directories(${EIGEN_ROOT})
+
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools Charts)
 
 qt_standard_project_setup()
@@ -20,17 +23,25 @@ qt_add_executable(ConrolLine
     models/microstrip_full.h
     data/data_generator.cpp
     data/data_generator.h
+    data/data_loader.cpp
+    data/data_loader.h
     classifiers/logistic_regression.cpp
     classifiers/logistic_regression.h
     classifiers/lda.cpp
     classifiers/lda.h
     classifiers/naive_bayes.cpp
     classifiers/naive_bayes.h
+    classifiers/bayesian_classifier.cpp
+    classifiers/bayesian_classifier.h
     classifiers/classifier_base.h
     utils/complex_plot.cpp
     utils/complex_plot.h
     utils/matrix_utils.cpp
     utils/matrix_utils.h
+    utils/sensitivity_analysis.cpp
+    utils/sensitivity_analysis.h
+    utils/metrics.cpp
+    utils/metrics.h
 )
 
 target_include_directories(ConrolLine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

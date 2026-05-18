@@ -1,13 +1,16 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "classifiers/bayesian_classifier.h"
 #include "classifiers/lda.h"
 #include "classifiers/logistic_regression.h"
 #include "classifiers/naive_bayes.h"
 #include "data/data_generator.h"
+#include "data/data_loader.h"
 #include "models/line_calculator.h"
 #include "models/microstrip_full.h"
 #include "utils/complex_plot.h"
+#include "utils/metrics.h"
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QJsonObject>
@@ -51,15 +54,22 @@ private slots:
   void onTrainClicked();
   void onClassifyClicked();
   void updateMetricsDisplay();
+  void onLoadCsvClicked();
+  void onExportMetricsClicked();
+  void onPlotConfusionMatrix();
+  void onPlotRocCurves();
+  void onSensitivityAnalysis();
 
 private:
   Ui::MainWindow *ui;
   LineCalculator calculator_;
   MicrostripFullModel fullModel_;
   DataGenerator generator_;
+  DataLoader dataLoader_;
   LogisticRegression lr_;
   LDA lda_;
   NaiveBayes nb_;
+  BayesianClassifier bayes_;
   ClassifierBase *classifier_;
   std::string currentClassifierName_;
 
@@ -74,8 +84,7 @@ private:
   ComplexPlot *totalPlot_, *vertPlot_, *horizPlot_;
   ComplexPlot *iPlot_, *qPlot_;
 
-  // Виджеты для настройки классификации и вывода метрик (будут размещены в
-  // ui->frame)
+  // Виджеты для настройки классификации и вывода метрик
   QComboBox *classifierCombo_;
   QDoubleSpinBox *learningRateSpin_;
   QSpinBox *epochsSpin_;
@@ -85,6 +94,11 @@ private:
   QPushButton *generateBtn_;
   QPushButton *trainBtn_;
   QPushButton *classifyBtn_;
+  QPushButton *loadCsvBtn_;
+  QPushButton *exportMetricsBtn_;
+  QPushButton *plotConfusionBtn_;
+  QPushButton *plotRocBtn_;
+  QPushButton *sensitivityBtn_;
   QTextEdit *metricsTextEdit_;
 
   void updateParametersOutput();
@@ -96,6 +110,8 @@ private:
   void loadSettingsFromJson(const QJsonObject &json);
   QJsonObject saveSettingsToJson() const;
   void setupCharts();
+  void setupAdditionalUi();
+  void logDetailedDataInfo();
 };
 
 #endif

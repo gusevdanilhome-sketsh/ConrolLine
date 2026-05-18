@@ -4,7 +4,6 @@
 #include <numeric>
 #include <random>
 
-
 LogisticRegression::LogisticRegression()
     : learning_rate_(0.01), max_epochs_(500), lambda_(0.01), batch_size_(32),
       num_classes_(0), num_features_(0) {}
@@ -144,4 +143,22 @@ LogisticRegression::predict(const std::vector<std::vector<double>> &X) const {
     predictions[i] = bestClass;
   }
   return predictions;
+}
+
+std::vector<std::vector<double>> LogisticRegression::predictProbabilities(
+    const std::vector<std::vector<double>> &X) const {
+  std::vector<std::vector<double>> probs(
+      X.size(), std::vector<double>(num_classes_, 0.0));
+  for (size_t i = 0; i < X.size(); ++i) {
+    std::vector<double> scores(num_classes_, 0.0);
+    for (int c = 0; c < num_classes_; ++c) {
+      double dot = biases_[c];
+      for (int j = 0; j < num_features_; ++j)
+        dot += weights_[c][j] * X[i][j];
+      scores[c] = dot;
+    }
+    softmax(scores);
+    probs[i] = scores;
+  }
+  return probs;
 }

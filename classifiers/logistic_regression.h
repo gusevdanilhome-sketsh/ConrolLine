@@ -13,6 +13,8 @@ public:
              const std::vector<int> &y) override;
   std::vector<int>
   predict(const std::vector<std::vector<double>> &X) const override;
+  std::vector<std::vector<double>>
+  predictProbabilities(const std::vector<std::vector<double>> &X) const;
 
 private:
   double learning_rate_;

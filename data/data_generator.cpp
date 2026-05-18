@@ -2,6 +2,7 @@
 #include <cmath>
 #include <random>
 
+static constexpr double PI = 3.141592653589793;
 
 DataGenerator::DataGenerator(const LineCalculator &calc)
     : calculator_(calc), noise_std_(0.05) {}
@@ -10,7 +11,7 @@ void DataGenerator::setNoiseStd(double sigma) { noise_std_ = sigma; }
 
 std::complex<double> DataGenerator::defectImpedance(int cls, double mag,
                                                     double f) const {
-  double omega = 2.0 * M_PI * f;
+  double omega = 2.0 * PI * f;
   switch (cls) {
   case 1:
     return {0.01 * mag, omega * 0.2e-9 * mag};
@@ -20,6 +21,24 @@ std::complex<double> DataGenerator::defectImpedance(int cls, double mag,
     return {0.0, -1.0 / (omega * 0.15e-12 * mag + 1e-15)};
   case 4:
     return {0.0, -1.0 / (omega * 0.12e-12 * mag + 1e-15)};
+  default:
+    return {calculator_.calcZ0(f), 0.0};
+  }
+}
+
+std::complex<double> DataGenerator::defectImpedanceEx(int cls, double param1,
+                                                      double param2,
+                                                      double f) const {
+  double omega = 2.0 * PI * f;
+  switch (cls) {
+  case 1:
+    return {param2, omega * param1};
+  case 2:
+    return {0.0, -1.0 / (omega * param1 + 1e-15)};
+  case 3:
+    return {0.0, -1.0 / (omega * param1 + 1e-15)};
+  case 4:
+    return {0.0, -1.0 / (omega * param1 + 1e-15)};
   default:
     return {calculator_.calcZ0(f), 0.0};
   }
@@ -62,4 +81,45 @@ void DataGenerator::generate(int samplesPerClass,
       labels.push_back(cls);
     }
   }
+}
+
+std::vector<double> DataGenerator::computeFeaturesForParams(
+    int cls, double mag, const std::vector<double> &freqs) const {
+  std::vector<double> feat;
+  for (double f : freqs) {
+    double Z0 = calculator_.calcZ0(f);
+    std::complex<double> Zdef = defectImpedance(cls, mag, f);
+    std::complex<double> Gamma = (cls == 0) ? 0.0 : (Zdef - Z0) / (Zdef + Z0);
+    std::complex<double> S(1.0 + Gamma.real(), Gamma.imag());
+    std::complex<double> Dx(0.5 * Gamma.real(), 0.5 * Gamma.imag());
+    std::complex<double> Dy(0.3 * Gamma.real(), 0.3 * Gamma.imag());
+    feat.push_back(S.real());
+    feat.push_back(S.imag());
+    feat.push_back(Dx.real());
+    feat.push_back(Dx.imag());
+    feat.push_back(Dy.real());
+    feat.push_back(Dy.imag());
+  }
+  return feat;
+}
+
+std::vector<double> DataGenerator::computeFeaturesForDefect(
+    int cls, double param1, double param2,
+    const std::vector<double> &freqs) const {
+  std::vector<double> feat;
+  for (double f : freqs) {
+    double Z0 = calculator_.calcZ0(f);
+    std::complex<double> Zdef = defectImpedanceEx(cls, param1, param2, f);
+    std::complex<double> Gamma = (cls == 0) ? 0.0 : (Zdef - Z0) / (Zdef + Z0);
+    std::complex<double> S(1.0 + Gamma.real(), Gamma.imag());
+    std::complex<double> Dx(0.5 * Gamma.real(), 0.5 * Gamma.imag());
+    std::complex<double> Dy(0.3 * Gamma.real(), 0.3 * Gamma.imag());
+    feat.push_back(S.real());
+    feat.push_back(S.imag());
+    feat.push_back(Dx.real());
+    feat.push_back(Dx.imag());
+    feat.push_back(Dy.real());
+    feat.push_back(Dy.imag());
+  }
+  return feat;
 }

@@ -1,7 +1,14 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "utils/complex_plot.h"
+#include "utils/metrics.h"
+#include "utils/sensitivity_analysis.h"
+#include <QBarSeries>
+#include <QBarSet>
+#include <QCategoryAxis>
+#include <QChartView>
 #include <QDateTime>
+#include <QDialog>
 #include <QDoubleSpinBox>
 #include <QFileDialog>
 #include <QFormLayout>
@@ -11,11 +18,10 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QTableWidget>
 #include <QTextBrowser>
 #include <QVBoxLayout>
-#include <numeric>
-#include <random>
-
+#include <QValueAxis>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), generator_(calculator_),
@@ -93,7 +99,7 @@ MainWindow::MainWindow(QWidget *parent)
           QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
           &MainWindow::onToleranceChanged);
 
-  // Консольные команды (оставляем)
+  // Консольные команды
   connect(ui->input_line_edit, &QLineEdit::returnPressed, this, [this]() {
     QString cmd = ui->input_line_edit->text().trimmed();
     if (cmd == "generate")
@@ -130,13 +136,25 @@ MainWindow::MainWindow(QWidget *parent)
   onParametersChanged();
   onToleranceChanged();
   setupCharts();
+  setupAdditionalUi();
 
   // Настройка генератора и классификатора по умолчанию
   lr_.setHyperparameters(0.01, 500, 0.01, 32);
   generator_.setNoiseStd(0.05);
+  bayes_.setNoiseStd(0.05);
+  // Загрузка сетки параметров для байесовского классификатора
+  bayes_.setParameterGrid();
 
-  // ========== СОЗДАНИЕ ПОЛЬЗОВАТЕЛЬСКОГО ИНТЕРФЕЙСА В frame ==========
-  // Очищаем существующий layout во frame (если что-то было)
+  appendToTerminal(
+      "Program started. Commands: generate, train, classify, set "
+      "classifier lr/lda/nb/bayes, plot hodograph, plot quadrature "
+      "0/1/2, set defect class 0..4, set defect mag 0..1");
+}
+
+MainWindow::~MainWindow() { delete ui; }
+
+void MainWindow::setupAdditionalUi() {
+  // Очищаем frame и создаём новый UI
   QLayout *oldLayout = ui->frame->layout();
   if (oldLayout) {
     QLayoutItem *item;
@@ -157,16 +175,25 @@ MainWindow::MainWindow(QWidget *parent)
   noiseStdSpin_->setSingleStep(0.01);
   noiseStdSpin_->setDecimals(3);
   noiseStdSpin_->setValue(0.05);
+  noiseStdSpin_->setToolTip(
+      "Стандартное отклонение аддитивного гауссовского шума");
   dataLayout->addRow("Стандартное отклонение шума:", noiseStdSpin_);
 
   samplesPerClassSpin_ = new QSpinBox(this);
   samplesPerClassSpin_->setRange(50, 1000);
   samplesPerClassSpin_->setSingleStep(50);
   samplesPerClassSpin_->setValue(200);
+  samplesPerClassSpin_->setToolTip(
+      "Количество синтетических образцов на каждый класс");
   dataLayout->addRow("Образцов на класс:", samplesPerClassSpin_);
 
   generateBtn_ = new QPushButton("Сгенерировать данные", this);
+  generateBtn_->setToolTip("Сгенерировать новую синтетическую выборку");
   dataLayout->addRow(generateBtn_);
+
+  loadCsvBtn_ = new QPushButton("Загрузить из CSV", this);
+  loadCsvBtn_->setToolTip("Загрузить реальные данные из CSV файла");
+  dataLayout->addRow(loadCsvBtn_);
   frameLayout->addWidget(dataGroup, 0, 0, 1, 2);
 
   // Группа настройки классификатора
@@ -175,7 +202,8 @@ MainWindow::MainWindow(QWidget *parent)
   classifierCombo_ = new QComboBox(this);
   classifierCombo_->addItems({"Логистическая регрессия (Softmax)",
                               "Линейный дискриминантный анализ (LDA)",
-                              "Наивный Байес (GaussianNB)"});
+                              "Наивный Байес (GaussianNB)",
+                              "Байесовский с маргинализацией"});
   classifierLayout->addRow("Тип:", classifierCombo_);
 
   learningRateSpin_ = new QDoubleSpinBox(this);
@@ -183,12 +211,15 @@ MainWindow::MainWindow(QWidget *parent)
   learningRateSpin_->setDecimals(6);
   learningRateSpin_->setSingleStep(0.001);
   learningRateSpin_->setValue(0.01);
+  learningRateSpin_->setToolTip(
+      "Скорость обучения для логистической регрессии");
   classifierLayout->addRow("Скорость обучения (LR):", learningRateSpin_);
 
   epochsSpin_ = new QSpinBox(this);
   epochsSpin_->setRange(10, 2000);
   epochsSpin_->setSingleStep(50);
   epochsSpin_->setValue(500);
+  epochsSpin_->setToolTip("Количество эпох обучения");
   classifierLayout->addRow("Количество эпох:", epochsSpin_);
 
   lambdaSpin_ = new QDoubleSpinBox(this);
@@ -196,6 +227,7 @@ MainWindow::MainWindow(QWidget *parent)
   lambdaSpin_->setDecimals(6);
   lambdaSpin_->setSingleStep(0.01);
   lambdaSpin_->setValue(0.01);
+  lambdaSpin_->setToolTip("Коэффициент L2-регуляризации");
   classifierLayout->addRow("Сила регуляризации (λ):", lambdaSpin_);
 
   frameLayout->addWidget(classifierGroup, 1, 0, 1, 2);
@@ -203,10 +235,29 @@ MainWindow::MainWindow(QWidget *parent)
   // Кнопки управления
   QHBoxLayout *buttonLayout = new QHBoxLayout;
   trainBtn_ = new QPushButton("Обучить", this);
+  trainBtn_->setToolTip("Обучить выбранный классификатор на текущих данных");
   classifyBtn_ = new QPushButton("Классифицировать", this);
+  classifyBtn_->setToolTip("Выполнить классификацию и вывести метрики");
+  exportMetricsBtn_ = new QPushButton("Экспорт метрик", this);
+  exportMetricsBtn_->setToolTip("Сохранить метрики в текстовый файл");
   buttonLayout->addWidget(trainBtn_);
   buttonLayout->addWidget(classifyBtn_);
+  buttonLayout->addWidget(exportMetricsBtn_);
   frameLayout->addLayout(buttonLayout, 2, 0, 1, 2);
+
+  // Кнопки визуализации
+  QHBoxLayout *vizLayout = new QHBoxLayout;
+  plotConfusionBtn_ = new QPushButton("Матрица ошибок", this);
+  plotConfusionBtn_->setToolTip("Показать тепловую карту матрицы ошибок");
+  plotRocBtn_ = new QPushButton("ROC-кривые", this);
+  plotRocBtn_->setToolTip("Показать ROC-кривые для каждого класса");
+  sensitivityBtn_ = new QPushButton("Анализ чувствительности", this);
+  sensitivityBtn_->setToolTip(
+      "Вычислить и показать частные производные волнового сопротивления");
+  vizLayout->addWidget(plotConfusionBtn_);
+  vizLayout->addWidget(plotRocBtn_);
+  vizLayout->addWidget(sensitivityBtn_);
+  frameLayout->addLayout(vizLayout, 3, 0, 1, 2);
 
   // Вывод метрик
   QGroupBox *metricsGroup = new QGroupBox("Метрики качества", this);
@@ -215,14 +266,24 @@ MainWindow::MainWindow(QWidget *parent)
   metricsTextEdit_->setReadOnly(true);
   metricsTextEdit_->setMinimumHeight(200);
   metricsLayout->addWidget(metricsTextEdit_);
-  frameLayout->addWidget(metricsGroup, 3, 0, 1, 2);
+  frameLayout->addWidget(metricsGroup, 4, 0, 1, 2);
 
-  // Подключение сигналов новых элементов
+  // Подключение сигналов
   connect(generateBtn_, &QPushButton::clicked, this,
           &MainWindow::onGenerateDataClicked);
+  connect(loadCsvBtn_, &QPushButton::clicked, this,
+          &MainWindow::onLoadCsvClicked);
   connect(trainBtn_, &QPushButton::clicked, this, &MainWindow::onTrainClicked);
   connect(classifyBtn_, &QPushButton::clicked, this,
           &MainWindow::onClassifyClicked);
+  connect(exportMetricsBtn_, &QPushButton::clicked, this,
+          &MainWindow::onExportMetricsClicked);
+  connect(plotConfusionBtn_, &QPushButton::clicked, this,
+          &MainWindow::onPlotConfusionMatrix);
+  connect(plotRocBtn_, &QPushButton::clicked, this,
+          &MainWindow::onPlotRocCurves);
+  connect(sensitivityBtn_, &QPushButton::clicked, this,
+          &MainWindow::onSensitivityAnalysis);
   connect(classifierCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
           this, &MainWindow::onClassifierSelectionChanged);
   connect(learningRateSpin_,
@@ -250,18 +311,143 @@ MainWindow::MainWindow(QWidget *parent)
   connect(noiseStdSpin_, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
           [this](double val) {
             generator_.setNoiseStd(val);
+            bayes_.setNoiseStd(val);
             appendToTerminal(QString("Уровень шума установлен: %1").arg(val));
           });
 
-  // Установка начального классификатора
   onClassifierSelectionChanged(0);
-
-  appendToTerminal("Program started. Commands: generate, train, classify, set "
-                   "classifier lr/lda/nb, plot hodograph, plot quadrature "
-                   "0/1/2, set defect class 0..4, set defect mag 0..1");
 }
 
-MainWindow::~MainWindow() { delete ui; }
+void MainWindow::onClassifierSelectionChanged(int index) {
+  QString name;
+  switch (index) {
+  case 0:
+    name = "lr";
+    break;
+  case 1:
+    name = "lda";
+    break;
+  case 2:
+    name = "nb";
+    break;
+  case 3:
+    name = "bayes";
+    break;
+  default:
+    name = "lr";
+  }
+  onSetClassifier(name);
+  bool isLR = (index == 0);
+  learningRateSpin_->setEnabled(isLR);
+  epochsSpin_->setEnabled(isLR);
+  lambdaSpin_->setEnabled(isLR);
+  if (!isLR) {
+    appendToTerminal(
+        "Для выбранного классификатора гиперпараметры не используются.");
+  } else {
+    lr_.setHyperparameters(learningRateSpin_->value(), epochsSpin_->value(),
+                           lambdaSpin_->value(), 32);
+  }
+}
+
+void MainWindow::onGenerateDataClicked() { onGenerateData(); }
+
+void MainWindow::onLoadCsvClicked() {
+  QString fn = QFileDialog::getOpenFileName(this, "Загрузить CSV", "", "*.csv");
+  if (fn.isEmpty())
+    return;
+  try {
+    dataLoader_.loadCSV(fn.toStdString(), features_, labels_);
+    appendToTerminal(
+        QString("Загружено %1 образцов из %2").arg(features_.size()).arg(fn));
+    logDetailedDataInfo();
+    appendToOutput("Данные загружены из CSV. Можно обучать классификатор.");
+  } catch (const std::exception &e) {
+    appendToTerminal(QString("Ошибка загрузки CSV: %1").arg(e.what()));
+  }
+}
+
+void MainWindow::onTrainClicked() { onTrainClassifier(); }
+
+void MainWindow::onClassifyClicked() { onClassify(); }
+
+void MainWindow::onExportMetricsClicked() {
+  if (features_.empty() || labels_.empty()) {
+    appendToTerminal("Нет данных. Сначала сгенерируйте или загрузите выборку.");
+    return;
+  }
+  auto pred = classifier_->predict(features_);
+  QString metricsStr = Metrics::formatMetrics(pred, labels_);
+  QString fn =
+      QFileDialog::getSaveFileName(this, "Сохранить метрики", "", "*.txt");
+  if (!fn.isEmpty()) {
+    QFile file(fn);
+    if (file.open(QIODevice::WriteOnly)) {
+      file.write(metricsStr.toUtf8());
+      appendToTerminal("Метрики сохранены в " + fn);
+    } else {
+      appendToTerminal("Ошибка сохранения файла");
+    }
+  }
+}
+
+void MainWindow::onPlotConfusionMatrix() {
+  if (features_.empty() || labels_.empty()) {
+    appendToTerminal("Нет данных для построения матрицы ошибок.");
+    return;
+  }
+  auto pred = classifier_->predict(features_);
+  auto cm = Metrics::confusionMatrix(pred, labels_, 5);
+  // Создаём диалог с графиком
+  QDialog *dialog = new QDialog(this);
+  dialog->setWindowTitle("Матрица ошибок");
+  QChartView *chartView = Metrics::plotConfusionMatrix(cm, 5);
+  QVBoxLayout *layout = new QVBoxLayout(dialog);
+  layout->addWidget(chartView);
+  dialog->resize(600, 500);
+  dialog->exec();
+}
+
+void MainWindow::onPlotRocCurves() {
+  if (features_.empty() || labels_.empty()) {
+    appendToTerminal("Нет данных для построения ROC-кривых.");
+    return;
+  }
+  // Для ROC нужны вероятности. Пока поддерживаем только логистическую регрессию
+  // и байесовский.
+  std::vector<std::vector<double>> probs;
+  if (currentClassifierName_ == "lr") {
+    probs = lr_.predictProbabilities(features_);
+  } else if (currentClassifierName_ == "bayes") {
+    probs = bayes_.predictProbabilities(features_);
+  } else {
+    appendToTerminal("ROC-кривые доступны только для логистической регрессии и "
+                     "байесовского классификатора.");
+    return;
+  }
+  QDialog *dialog = new QDialog(this);
+  dialog->setWindowTitle("ROC-кривые");
+  QChartView *chartView = Metrics::plotRocCurves(probs, labels_, 5);
+  QVBoxLayout *layout = new QVBoxLayout(dialog);
+  layout->addWidget(chartView);
+  dialog->resize(800, 600);
+  dialog->exec();
+}
+
+void MainWindow::onSensitivityAnalysis() {
+  double w = ui->width_conductor_double_spin_box->value();
+  double t = ui->thickness_conductor_double_spin_box->value();
+  double h = ui->thickness_substrate_double_spin_box->value();
+  double er = ui->dielectric_permittion_substrate_double_spin_box->value();
+  auto sens = SensitivityAnalysis::computeSensitivities(w, t, h, er);
+  QString msg = QString("Частные производные волнового сопротивления:\n"
+                        "∂Z0/∂W = %1 Ом/м\n∂Z0/∂h = %2 Ом/м\n∂Z0/∂εr = %3 Ом")
+                    .arg(sens.dZdW, 0, 'e', 4)
+                    .arg(sens.dZdh, 0, 'e', 4)
+                    .arg(sens.dZder, 0, 'e', 4);
+  appendToTerminal(msg);
+  QMessageBox::information(this, "Анализ чувствительности", msg);
+}
 
 void MainWindow::onParametersChanged() {
   double w = ui->width_conductor_double_spin_box->value();
@@ -322,12 +508,42 @@ void MainWindow::onGenerateData() {
   appendToTerminal(QString("Generated %1 samples, each with %2 features")
                        .arg(features_.size())
                        .arg(features_.empty() ? 0 : (int)features_[0].size()));
+  logDetailedDataInfo();
   appendToOutput("Data generated. Now you can train a classifier.");
+}
+
+void MainWindow::logDetailedDataInfo() {
+  if (features_.empty())
+    return;
+  int nClasses = 5;
+  std::vector<int> classCounts(nClasses, 0);
+  for (int l : labels_)
+    classCounts[l]++;
+  appendToTerminal("=== Detailed data info ===");
+  appendToTerminal(QString("Total samples: %1").arg(features_.size()));
+  appendToTerminal(QString("Feature dimension: %1").arg(features_[0].size()));
+  for (int c = 0; c < nClasses; ++c) {
+    appendToTerminal(
+        QString("Class %1: %2 samples").arg(c).arg(classCounts[c]));
+  }
+  // Вычислим статистику признаков (среднее, дисперсию) для первого признака как
+  // пример
+  double sum = 0.0, sum2 = 0.0;
+  for (const auto &feat : features_) {
+    sum += feat[0];
+    sum2 += feat[0] * feat[0];
+  }
+  double mean = sum / features_.size();
+  double var = sum2 / features_.size() - mean * mean;
+  appendToTerminal(QString("Feature0 mean = %1, variance = %2")
+                       .arg(mean, 0, 'e', 4)
+                       .arg(var, 0, 'e', 4));
+  appendToTerminal("===========================");
 }
 
 void MainWindow::onTrainClassifier() {
   if (features_.empty()) {
-    appendToTerminal("No data. Run 'generate' first.");
+    appendToTerminal("No data. Run 'generate' or load CSV first.");
     return;
   }
   appendToTerminal(QString("Training classifier: %1...")
@@ -338,42 +554,39 @@ void MainWindow::onTrainClassifier() {
 
 void MainWindow::onClassify() {
   if (features_.empty()) {
-    appendToTerminal("No data. Run 'generate' first.");
+    appendToTerminal("No data. Run 'generate' or load CSV first.");
     return;
   }
   appendToTerminal("Classifying...");
   auto pred = classifier_->predict(features_);
   printMetrics(pred, labels_);
-  updateMetricsDisplay(); // обновляем текстовое поле в frame
+  updateMetricsDisplay();
 }
 
 void MainWindow::printMetrics(const std::vector<int> &pred,
                               const std::vector<int> &trueLabels) {
-  int nClasses = 5;
-  std::vector<int> tp(nClasses, 0), fp(nClasses, 0), fn(nClasses, 0);
-  for (size_t i = 0; i < pred.size(); ++i) {
-    int t = trueLabels[i];
-    int p = pred[i];
-    if (p == t)
-      tp[t]++;
-    else {
-      fp[p]++;
-      fn[t]++;
-    }
-  }
-  int correct = std::accumulate(tp.begin(), tp.end(), 0);
-  double acc = 100.0 * correct / pred.size();
-  appendToTerminal(QString("Overall accuracy: %1%").arg(acc, 0, 'f', 2));
-  for (int c = 0; c < nClasses; ++c) {
-    double prec = (tp[c] + fp[c] == 0) ? 0 : 100.0 * tp[c] / (tp[c] + fp[c]);
-    double rec = (tp[c] + fn[c] == 0) ? 0 : 100.0 * tp[c] / (tp[c] + fn[c]);
-    double f1 = (prec + rec == 0) ? 0 : 2 * prec * rec / (prec + rec);
+  auto metrics = Metrics::computeAll(pred, trueLabels, 5);
+  appendToTerminal(
+      QString("Overall accuracy: %1%").arg(metrics.accuracy, 0, 'f', 2));
+  for (int c = 0; c < 5; ++c) {
     appendToTerminal(QString("Class %1: P=%.1f%% R=%.1f%% F1=%.1f%%")
                          .arg(c)
-                         .arg(prec)
-                         .arg(rec)
-                         .arg(f1));
+                         .arg(metrics.precision[c], 0, 'f', 1)
+                         .arg(metrics.recall[c], 0, 'f', 1)
+                         .arg(metrics.f1[c], 0, 'f', 1));
   }
+  appendToTerminal(QString("Macro F1 = %1%").arg(metrics.macroF1, 0, 'f', 2));
+}
+
+void MainWindow::updateMetricsDisplay() {
+  if (features_.empty() || labels_.empty()) {
+    metricsTextEdit_->setText(
+        "Нет данных. Сначала сгенерируйте или загрузите выборку.");
+    return;
+  }
+  auto pred = classifier_->predict(features_);
+  QString html = Metrics::formatHtmlMetrics(pred, labels_);
+  metricsTextEdit_->setHtml(html);
 }
 
 void MainWindow::onSetClassifier(const QString &name) {
@@ -389,8 +602,12 @@ void MainWindow::onSetClassifier(const QString &name) {
     classifier_ = &nb_;
     currentClassifierName_ = "nb";
     appendToTerminal("Classifier set to Naive Bayes");
+  } else if (name == "bayes") {
+    classifier_ = &bayes_;
+    currentClassifierName_ = "bayes";
+    appendToTerminal("Classifier set to Bayesian with marginalization");
   } else {
-    appendToTerminal("Unknown classifier. Use lr, lda, nb");
+    appendToTerminal("Unknown classifier. Use lr, lda, nb, bayes");
   }
 }
 
@@ -597,85 +814,4 @@ void MainWindow::updateQuadrature(int channel) {
   iPlot_->setData(iPoints, true);
   qPlot_->setData(qPoints, true);
   appendToTerminal(QString("Quadrature for channel %1 updated").arg(channel));
-}
-
-// ========== Реализация новых слотов для UI ==========
-void MainWindow::onClassifierSelectionChanged(int index) {
-  QString name;
-  switch (index) {
-  case 0:
-    name = "lr";
-    break;
-  case 1:
-    name = "lda";
-    break;
-  case 2:
-    name = "nb";
-    break;
-  default:
-    name = "lr";
-  }
-  onSetClassifier(name);
-  // В зависимости от выбранного классификатора делаем активными/неактивными
-  // настройки
-  bool isLR = (index == 0);
-  learningRateSpin_->setEnabled(isLR);
-  epochsSpin_->setEnabled(isLR);
-  lambdaSpin_->setEnabled(isLR);
-  if (!isLR) {
-    // Для LDA и NB можно при желании установить другие гиперпараметры, но пока
-    // просто игнорируем
-    appendToTerminal("Для LDA и NB гиперпараметры не используются.");
-  } else {
-    // Принудительно устанавливаем параметры LR из текущих значений спинбоксов
-    lr_.setHyperparameters(learningRateSpin_->value(), epochsSpin_->value(),
-                           lambdaSpin_->value(), 32);
-  }
-}
-
-void MainWindow::onGenerateDataClicked() { onGenerateData(); }
-
-void MainWindow::onTrainClicked() { onTrainClassifier(); }
-
-void MainWindow::onClassifyClicked() { onClassify(); }
-
-void MainWindow::updateMetricsDisplay() {
-  if (features_.empty() || labels_.empty()) {
-    metricsTextEdit_->setText("Нет данных. Сначала сгенерируйте выборку.");
-    return;
-  }
-  // Получаем предсказания и вычисляем метрики
-  auto pred = classifier_->predict(features_);
-  int nClasses = 5;
-  std::vector<int> tp(nClasses, 0), fp(nClasses, 0), fn(nClasses, 0);
-  for (size_t i = 0; i < pred.size(); ++i) {
-    int t = labels_[i];
-    int p = pred[i];
-    if (p == t)
-      tp[t]++;
-    else {
-      fp[p]++;
-      fn[t]++;
-    }
-  }
-  int correct = std::accumulate(tp.begin(), tp.end(), 0);
-  double acc = 100.0 * correct / pred.size();
-
-  QString html = "<b>Общая точность (Accuracy):</b> " +
-                 QString::number(acc, 'f', 2) + "%<br><br>";
-  html += "<table border='1' cellpadding='5' cellspacing='0'>";
-  html += "<tr><th>Класс</th><th>Precision (%)</th><th>Recall "
-          "(%)</th><th>F1-score (%)</th></tr>";
-  for (int c = 0; c < nClasses; ++c) {
-    double prec = (tp[c] + fp[c] == 0) ? 0 : 100.0 * tp[c] / (tp[c] + fp[c]);
-    double rec = (tp[c] + fn[c] == 0) ? 0 : 100.0 * tp[c] / (tp[c] + fn[c]);
-    double f1 = (prec + rec == 0) ? 0 : 2 * prec * rec / (prec + rec);
-    html += QString("<tr><td>%1</td><td>%2</td><td>%3</td><td>%4</td></tr>")
-                .arg(c)
-                .arg(prec, 0, 'f', 1)
-                .arg(rec, 0, 'f', 1)
-                .arg(f1, 0, 'f', 1);
-  }
-  html += "</table>";
-  metricsTextEdit_->setHtml(html);
 }
