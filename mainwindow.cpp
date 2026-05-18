@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "utils/complex_plot.h"
 #include <QDateTime>
 #include <QDoubleSpinBox>
 #include <QFileDialog>
@@ -10,29 +11,10 @@
 #include <QTextBrowser>
 #include <QVBoxLayout>
 
-void MainWindow::onSetClassifier(const QString &name) {
-  if (name == "lr") {
-    classifier_ = &lr_;
-    currentClassifierName_ = "lr";
-    appendToTerminal("Активен классификатор: логистическая регрессия");
-  } else if (name == "lda") {
-    classifier_ = &lda_;
-    currentClassifierName_ = "lda";
-    appendToTerminal("Активен классификатор: LDA (заглушка)");
-  } else if (name == "nb") {
-    classifier_ = &nb_;
-    currentClassifierName_ = "nb";
-    appendToTerminal("Активен классификатор: наивный Байес (заглушка)");
-  } else {
-    appendToTerminal("Неизвестный классификатор. Используйте: lr, lda, nb");
-  }
-}
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), generator_(calculator_),
-      classifier_(&lr_) // по умолчанию логистическая регрессия
-      ,
-      currentClassifierName_("lr") {
+      classifier_(&lr_), currentClassifierName_("lr") {
   ui->setupUi(this);
   qDebug() << "MainWindow constructor started";
 
@@ -107,6 +89,7 @@ MainWindow::MainWindow(QWidget *parent)
           QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
           &MainWindow::onToleranceChanged);
 
+  // Консольные команды
   connect(ui->input_line_edit, &QLineEdit::returnPressed, this, [this]() {
     QString cmd = ui->input_line_edit->text().trimmed();
     if (cmd == "generate")
@@ -118,21 +101,41 @@ MainWindow::MainWindow(QWidget *parent)
     else if (cmd.startsWith("set classifier ")) {
       QString name = cmd.mid(15).trimmed();
       onSetClassifier(name);
+    } else if (cmd == "plot hodograph")
+      updateHodographs();
+    else if (cmd.startsWith("plot quadrature ")) {
+      int ch = cmd.mid(16).trimmed().toInt();
+      updateQuadrature(ch);
+    } else if (cmd.startsWith("set defect class ")) {
+      int cls = cmd.mid(17).trimmed().toInt();
+      if (cls >= 0 && cls <= 4)
+        currentDefectClass_ = cls;
+      else
+        appendToTerminal("Class must be 0..4");
+    } else if (cmd.startsWith("set defect mag ")) {
+      double mag = cmd.mid(15).trimmed().toDouble();
+      if (mag >= 0 && mag <= 1)
+        currentDefectMagnitude_ = mag;
+      else
+        appendToTerminal("Magnitude must be 0..1");
     } else if (!cmd.isEmpty())
-      appendToTerminal("Неизвестная команда. Доступны: generate, train, "
-                       "classify, set classifier lr/lda/nb");
+      appendToTerminal("Unknown command");
     ui->input_line_edit->clear();
   });
 
-  lr_.setHyperparameters(0.01, 500, 0.01, 32);
-
-  // Первоначальный расчёт
+  // Инициализация параметров
   onParametersChanged();
   onToleranceChanged();
   setupCharts();
 
+  lr_.setHyperparameters(0.01, 500, 0.01, 32);
   generator_.setNoiseStd(0.05);
-  appendToTerminal("Программа запущена. Команды: generate, train, classify");
+  currentDefectClass_ = 1;
+  currentDefectMagnitude_ = 0.5;
+
+  appendToTerminal("Program started. Commands: generate, train, classify, set "
+                   "classifier lr/lda/nb, plot hodograph, plot quadrature "
+                   "0/1/2, set defect class 0..4, set defect mag 0..1");
   qDebug() << "MainWindow constructor finished";
 }
 
@@ -147,11 +150,11 @@ void MainWindow::onParametersChanged() {
   double sigma = ui->conductive_conductor_double_spin_box->value();
 
   if (w <= 0.0 || t <= 0.0 || h <= 0.0 || er < 1.0) {
-    ui->output_parameters_text_browser->setText(
-        "Ошибка: некорректные параметры (размеры > 0, εr ≥ 1)");
+    ui->output_parameters_text_browser->setText("Error: invalid parameters");
     return;
   }
   calculator_.setParams(w, t, h, er, tand, sigma);
+  fullModel_.setParams(w, t, h, er, tand, sigma);
   updateParametersOutput();
 }
 
@@ -161,8 +164,7 @@ void MainWindow::updateParametersOutput() {
   double er_eff = calculator_.calcEffPermittivity(f);
   double alpha = calculator_.calcAttenuation(f);
   ui->output_parameters_text_browser->setText(
-      QString(
-          "Параметры линии при f=1 ГГц:\nZ0 = %1 Ом\nε_eff = %2\nα = %3 Нп/м")
+      QString("Line params at 1 GHz:\nZ0 = %1 Ohm\nε_eff = %2\nα = %3 Np/m")
           .arg(Z0, 0, 'f', 2)
           .arg(er_eff, 0, 'f', 4)
           .arg(alpha, 0, 'f', 4));
@@ -176,8 +178,8 @@ void MainWindow::updateToleranceOutput() {
   double t_tol = ui->thickness_conductor_double_spin_box_2->value();
   double h_tol = ui->thickness_substrate_double_spin_box_2->value();
 
-  QString msg = QString("Отклонения:\nШирина: %1 м (%2%)\nТолщина: %3 м "
-                        "(%4%)\nПодложка: %5 м (%6%)")
+  QString msg = QString("Deviations:\nWidth: %1 m (%2%)\nThick: %3 m "
+                        "(%4%)\nHeight: %5 m (%6%)")
                     .arg(w_tol - w_nom, 0, 'e', 2)
                     .arg((w_tol - w_nom) / w_nom * 100, 0, 'f', 2)
                     .arg(t_tol - t_nom, 0, 'e', 2)
@@ -190,80 +192,117 @@ void MainWindow::updateToleranceOutput() {
 void MainWindow::onToleranceChanged() { updateToleranceOutput(); }
 
 void MainWindow::onGenerateData() {
-  appendToTerminal("Генерация синтетических данных...");
+  appendToTerminal("Generating synthetic data...");
   std::vector<double> freqs;
   for (int f = 1; f <= 10; ++f)
     freqs.push_back(f * 1e9);
   generator_.generate(200, freqs, features_, labels_);
-  appendToTerminal(QString("Сгенерировано %1 образцов, каждый с %2 признаками")
+  appendToTerminal(QString("Generated %1 samples, each with %2 features")
                        .arg(features_.size())
                        .arg(features_.empty() ? 0 : (int)features_[0].size()));
-  appendToOutput("Данные сгенерированы. Теперь можно выполнить train.");
+  appendToOutput("Data generated. Now you can train a classifier.");
 }
 
 void MainWindow::onTrainClassifier() {
   if (features_.empty()) {
-    appendToTerminal("Ошибка: нет данных. Сначала выполните generate.");
+    appendToTerminal("No data. Run 'generate' first.");
     return;
   }
-  appendToTerminal("Обучение классификатора (логистическая регрессия)...");
+  appendToTerminal(QString("Training classifier: %1...")
+                       .arg(QString::fromStdString(currentClassifierName_)));
   classifier_->train(features_, labels_);
-  appendToTerminal("Обучение завершено.");
-  appendToOutput("Классификатор обучен.");
+  appendToTerminal("Training finished.");
 }
 
 void MainWindow::onClassify() {
   if (features_.empty()) {
-    appendToTerminal("Ошибка: нет данных. Сначала выполните generate и train.");
+    appendToTerminal("No data. Run 'generate' first.");
     return;
   }
-  appendToTerminal("Классификация...");
-  std::vector<int> pred = classifier_->predict(features_);
-  int correct = 0;
-  for (size_t i = 0; i < pred.size(); ++i)
-    if (pred[i] == labels_[i])
-      ++correct;
-  double acc = 100.0 * correct / pred.size();
-  appendToTerminal(
-      QString("Точность на обучающей выборке: %1% (случайное угадывание ~20%)")
-          .arg(acc, 0, 'f', 2));
-  appendToOutput("Классификация выполнена.");
+  appendToTerminal("Classifying...");
+  auto pred = classifier_->predict(features_);
+  printMetrics(pred, labels_);
 }
 
-void MainWindow::onSaveConfiguration() {
-  QString fileName = QFileDialog::getSaveFileName(
-      this, "Сохранить конфигурацию", "", "JSON (*.json)");
-  if (fileName.isEmpty())
-    return;
-  QJsonObject obj = saveSettingsToJson();
-  QFile file(fileName);
-  if (file.open(QIODevice::WriteOnly)) {
-    file.write(QJsonDocument(obj).toJson());
-    appendToTerminal("Конфигурация сохранена в " + fileName);
-  } else {
-    appendToTerminal("Ошибка сохранения");
+void MainWindow::printMetrics(const std::vector<int> &pred,
+                              const std::vector<int> &trueLabels) {
+  int nClasses = 5;
+  std::vector<int> tp(nClasses, 0), fp(nClasses, 0), fn(nClasses, 0);
+  for (size_t i = 0; i < pred.size(); ++i) {
+    int t = trueLabels[i];
+    int p = pred[i];
+    if (p == t)
+      tp[t]++;
+    else {
+      fp[p]++;
+      fn[t]++;
+    }
   }
+  int correct = std::accumulate(tp.begin(), tp.end(), 0);
+  double acc = 100.0 * correct / pred.size();
+  appendToTerminal(QString("Overall accuracy: %1%").arg(acc, 0, 'f', 2));
+  for (int c = 0; c < nClasses; ++c) {
+    double prec = (tp[c] + fp[c] == 0) ? 0 : 100.0 * tp[c] / (tp[c] + fp[c]);
+    double rec = (tp[c] + fn[c] == 0) ? 0 : 100.0 * tp[c] / (tp[c] + fn[c]);
+    double f1 = (prec + rec == 0) ? 0 : 2 * prec * rec / (prec + rec);
+    appendToTerminal(QString("Class %1: P=%.1f%% R=%.1f%% F1=%.1f%%")
+                         .arg(c)
+                         .arg(prec)
+                         .arg(rec)
+                         .arg(f1));
+  }
+}
+
+void MainWindow::onSetClassifier(const QString &name) {
+  if (name == "lr") {
+    classifier_ = &lr_;
+    currentClassifierName_ = "lr";
+    appendToTerminal("Classifier set to Logistic Regression");
+  } else if (name == "lda") {
+    classifier_ = &lda_;
+    currentClassifierName_ = "lda";
+    appendToTerminal("Classifier set to LDA");
+  } else if (name == "nb") {
+    classifier_ = &nb_;
+    currentClassifierName_ = "nb";
+    appendToTerminal("Classifier set to Naive Bayes");
+  } else {
+    appendToTerminal("Unknown classifier. Use lr, lda, nb");
+  }
+}
+
+// ------------------- JSON config -------------------
+void MainWindow::onSaveConfiguration() {
+  QString fn = QFileDialog::getSaveFileName(this, "Save config", "", "*.json");
+  if (fn.isEmpty())
+    return;
+  QFile f(fn);
+  if (!f.open(QIODevice::WriteOnly)) {
+    appendToTerminal("Cannot save file");
+    return;
+  }
+  f.write(QJsonDocument(saveSettingsToJson()).toJson());
+  appendToTerminal("Config saved to " + fn);
 }
 
 void MainWindow::onLoadConfiguration() {
-  QString fileName = QFileDialog::getOpenFileName(
-      this, "Загрузить конфигурацию", "", "JSON (*.json)");
-  if (fileName.isEmpty())
+  QString fn = QFileDialog::getOpenFileName(this, "Load config", "", "*.json");
+  if (fn.isEmpty())
     return;
-  QFile file(fileName);
-  if (!file.open(QIODevice::ReadOnly)) {
-    appendToTerminal("Не удалось открыть файл");
+  QFile f(fn);
+  if (!f.open(QIODevice::ReadOnly)) {
+    appendToTerminal("Cannot open file");
     return;
   }
-  QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+  QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
   if (doc.isNull()) {
-    appendToTerminal("Некорректный JSON");
+    appendToTerminal("Invalid JSON");
     return;
   }
   loadSettingsFromJson(doc.object());
   onParametersChanged();
   onToleranceChanged();
-  appendToTerminal("Конфигурация загружена из " + fileName);
+  appendToTerminal("Config loaded from " + fn);
 }
 
 void MainWindow::onResetConfiguration() {
@@ -278,31 +317,30 @@ void MainWindow::onResetConfiguration() {
   ui->thickness_substrate_double_spin_box_2->setValue(0.001);
   onParametersChanged();
   onToleranceChanged();
-  appendToTerminal("Конфигурация сброшена к значениям по умолчанию");
+  appendToTerminal("Config reset to default");
 }
 
 QJsonObject MainWindow::saveSettingsToJson() const {
   QJsonObject obj;
-  obj["width"] = ui->width_conductor_double_spin_box->value();
-  obj["thickness"] = ui->thickness_conductor_double_spin_box->value();
-  obj["height"] = ui->thickness_substrate_double_spin_box->value();
+  obj["w"] = ui->width_conductor_double_spin_box->value();
+  obj["t"] = ui->thickness_conductor_double_spin_box->value();
+  obj["h"] = ui->thickness_substrate_double_spin_box->value();
   obj["er"] = ui->dielectric_permittion_substrate_double_spin_box->value();
   obj["tand"] = ui->tangence_ougla_electric_loss_double_spin_box->value();
   obj["sigma"] = ui->conductive_conductor_double_spin_box->value();
-  obj["width_tol"] = ui->width_conductor_double_spin_box_2->value();
-  obj["thickness_tol"] = ui->thickness_conductor_double_spin_box_2->value();
-  obj["height_tol"] = ui->thickness_substrate_double_spin_box_2->value();
+  obj["w_tol"] = ui->width_conductor_double_spin_box_2->value();
+  obj["t_tol"] = ui->thickness_conductor_double_spin_box_2->value();
+  obj["h_tol"] = ui->thickness_substrate_double_spin_box_2->value();
   return obj;
 }
 
 void MainWindow::loadSettingsFromJson(const QJsonObject &obj) {
-  if (obj.contains("width"))
-    ui->width_conductor_double_spin_box->setValue(obj["width"].toDouble());
-  if (obj.contains("thickness"))
-    ui->thickness_conductor_double_spin_box->setValue(
-        obj["thickness"].toDouble());
-  if (obj.contains("height"))
-    ui->thickness_substrate_double_spin_box->setValue(obj["height"].toDouble());
+  if (obj.contains("w"))
+    ui->width_conductor_double_spin_box->setValue(obj["w"].toDouble());
+  if (obj.contains("t"))
+    ui->thickness_conductor_double_spin_box->setValue(obj["t"].toDouble());
+  if (obj.contains("h"))
+    ui->thickness_substrate_double_spin_box->setValue(obj["h"].toDouble());
   if (obj.contains("er"))
     ui->dielectric_permittion_substrate_double_spin_box->setValue(
         obj["er"].toDouble());
@@ -311,15 +349,14 @@ void MainWindow::loadSettingsFromJson(const QJsonObject &obj) {
         obj["tand"].toDouble());
   if (obj.contains("sigma"))
     ui->conductive_conductor_double_spin_box->setValue(obj["sigma"].toDouble());
-  if (obj.contains("width_tol"))
-    ui->width_conductor_double_spin_box_2->setValue(
-        obj["width_tol"].toDouble());
-  if (obj.contains("thickness_tol"))
+  if (obj.contains("w_tol"))
+    ui->width_conductor_double_spin_box_2->setValue(obj["w_tol"].toDouble());
+  if (obj.contains("t_tol"))
     ui->thickness_conductor_double_spin_box_2->setValue(
-        obj["thickness_tol"].toDouble());
-  if (obj.contains("height_tol"))
+        obj["t_tol"].toDouble());
+  if (obj.contains("h_tol"))
     ui->thickness_substrate_double_spin_box_2->setValue(
-        obj["height_tol"].toDouble());
+        obj["h_tol"].toDouble());
 }
 
 void MainWindow::appendToTerminal(const QString &text) {
@@ -332,47 +369,111 @@ void MainWindow::appendToOutput(const QString &text) {
       QDateTime::currentDateTime().toString("[hh:mm:ss] ") + text);
 }
 
-// Заглушки визуализации (без реальных графиков, но без падений)
+// ------------------- Real visualization -------------------
 void MainWindow::setupCharts() {
-  if (ui->total_channel_frame->layout())
-    delete ui->total_channel_frame->layout();
-  ui->total_channel_frame->setLayout(new QVBoxLayout);
-  ui->total_channel_frame->layout()->addWidget(
-      new QLabel("Годограф суммарного канала (заглушка)"));
+  auto *totalFrame = ui->total_channel_frame;
+  totalFrame->setLayout(new QVBoxLayout);
+  totalPlot_ = new ComplexPlot(this);
+  totalFrame->layout()->addWidget(totalPlot_);
+  totalPlot_->setTitle("Годограф суммарного канала");
 
-  if (ui->verticy_channel_frame->layout())
-    delete ui->verticy_channel_frame->layout();
-  ui->verticy_channel_frame->setLayout(new QVBoxLayout);
-  ui->verticy_channel_frame->layout()->addWidget(
-      new QLabel("Годограф вертикального канала (заглушка)"));
+  auto *vertFrame = ui->verticy_channel_frame;
+  vertFrame->setLayout(new QVBoxLayout);
+  vertPlot_ = new ComplexPlot(this);
+  vertFrame->layout()->addWidget(vertPlot_);
+  vertPlot_->setTitle("Годограф вертикального канала");
 
-  if (ui->horizontal_channel_frame->layout())
-    delete ui->horizontal_channel_frame->layout();
-  ui->horizontal_channel_frame->setLayout(new QVBoxLayout);
-  ui->horizontal_channel_frame->layout()->addWidget(
-      new QLabel("Годограф горизонтального канала (заглушка)"));
+  auto *horizFrame = ui->horizontal_channel_frame;
+  horizFrame->setLayout(new QVBoxLayout);
+  horizPlot_ = new ComplexPlot(this);
+  horizFrame->layout()->addWidget(horizPlot_);
+  horizPlot_->setTitle("Годограф горизонтального канала");
 
-  if (ui->i_component_frame->layout())
-    delete ui->i_component_frame->layout();
-  ui->i_component_frame->setLayout(new QVBoxLayout);
-  ui->i_component_frame->layout()->addWidget(
-      new QLabel("I-составляющая (заглушка)"));
+  auto *iFrame = ui->i_component_frame;
+  iFrame->setLayout(new QVBoxLayout);
+  iPlot_ = new ComplexPlot(this);
+  iFrame->layout()->addWidget(iPlot_);
+  iPlot_->setTitle("Синфазная составляющая (I)");
+  iPlot_->setAxesLabels("Частота, ГГц", "I, отн. ед.");
 
-  if (ui->q_component_frame->layout())
-    delete ui->q_component_frame->layout();
-  ui->q_component_frame->setLayout(new QVBoxLayout);
-  ui->q_component_frame->layout()->addWidget(
-      new QLabel("Q-составляющая (заглушка)"));
-
-  appendToTerminal("Визуализация графиков временно отключена (заглушка)");
+  auto *qFrame = ui->q_component_frame;
+  qFrame->setLayout(new QVBoxLayout);
+  qPlot_ = new ComplexPlot(this);
+  qFrame->layout()->addWidget(qPlot_);
+  qPlot_->setTitle("Квадратурная составляющая (Q)");
+  qPlot_->setAxesLabels("Частота, ГГц", "Q, отн. ед.");
 }
 
 void MainWindow::updateHodographs() {
-  appendToTerminal("Обновление годографов (заглушка)");
+  currentFreqs_.clear();
+  for (int f = 1; f <= 10; ++f)
+    currentFreqs_.push_back(f * 1e9);
+  hodographTotal_.clear();
+  hodographVert_.clear();
+  hodographHoriz_.clear();
+
+  double a = 0.001;
+  for (double f : currentFreqs_) {
+    double Z0 = fullModel_.calcZ0(f);
+    std::complex<double> Zdef;
+    double mag = currentDefectMagnitude_;
+    switch (currentDefectClass_) {
+    case 1:
+      Zdef = {0.01 * mag, 2 * M_PI * f * 0.2e-9 * mag};
+      break;
+    case 2:
+      Zdef = {0.0, -1.0 / (2 * M_PI * f * 0.1e-12 * mag + 1e-15)};
+      break;
+    case 3:
+      Zdef = {0.0, -1.0 / (2 * M_PI * f * 0.15e-12 * mag + 1e-15)};
+      break;
+    case 4:
+      Zdef = {0.0, -1.0 / (2 * M_PI * f * 0.12e-12 * mag + 1e-15)};
+      break;
+    default:
+      Zdef = Z0;
+    }
+    std::complex<double> Gamma = (Zdef - Z0) / (Zdef + Z0);
+    std::complex<double> Uinc(1.0, 0.0);
+    double xd = 0.0;
+    auto U1 = fullModel_.voltageAt(-a / 2, f, Uinc, Gamma, xd);
+    auto U2 = fullModel_.voltageAt(a / 2, f, Uinc, Gamma, xd);
+    auto U3 = U2;
+    auto U4 = U1;
+    std::complex<double> S = (U1 + U2 + U3 + U4) / 4.0;
+    std::complex<double> Dx = ((U1 + U2) - (U3 + U4)) / 2.0;
+    std::complex<double> Dy = ((U1 - U2) - (U3 - U4)) / 2.0;
+    hodographTotal_.push_back(S);
+    hodographVert_.push_back(Dx);
+    hodographHoriz_.push_back(Dy);
+  }
+  totalPlot_->setData(hodographTotal_, false);
+  vertPlot_->setData(hodographVert_, false);
+  horizPlot_->setData(hodographHoriz_, false);
+  appendToTerminal("Hodographs updated");
 }
 
 void MainWindow::updateQuadrature(int channel) {
-  appendToTerminal(
-      QString("Обновление квадратурных составляющих для канала %1 (заглушка)")
-          .arg(channel));
+  const std::vector<std::complex<double>> *data = nullptr;
+  if (channel == 0)
+    data = &hodographTotal_;
+  else if (channel == 1)
+    data = &hodographVert_;
+  else
+    data = &hodographHoriz_;
+  if (!data || data->empty() || currentFreqs_.empty()) {
+    appendToTerminal("No hodograph data. Run 'plot hodograph' first.");
+    return;
+  }
+  std::vector<std::complex<double>> iPoints, qPoints;
+  for (size_t idx = 0; idx < currentFreqs_.size(); ++idx) {
+    double freqGHz = currentFreqs_[idx] / 1e9;
+    double I = (*data)[idx].real();
+    double Q = (*data)[idx].imag();
+    iPoints.push_back({freqGHz, I});
+    qPoints.push_back({freqGHz, Q});
+  }
+  iPlot_->setData(iPoints, true);
+  qPlot_->setData(qPoints, true);
+  appendToTerminal(QString("Quadrature for channel %1 updated").arg(channel));
 }

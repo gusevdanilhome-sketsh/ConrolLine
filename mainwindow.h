@@ -6,6 +6,7 @@
 #include "classifiers/naive_bayes.h"
 #include "data/data_generator.h"
 #include "models/line_calculator.h"
+#include "models/microstrip_full.h"
 #include <QJsonObject>
 #include <QMainWindow>
 #include <vector>
@@ -15,6 +16,7 @@ QT_BEGIN_NAMESPACE
 namespace Ui {
 class MainWindow;
 }
+class ComplexPlot;
 QT_END_NAMESPACE
 
 class MainWindow : public QMainWindow {
@@ -33,29 +35,41 @@ private slots:
   void onGenerateData();
   void onTrainClassifier();
   void onClassify();
-  void onSetClassifier(const QString &name); // новая команда
+  void onSetClassifier(const QString &name);
+  void updateHodographs();
+  void updateQuadrature(int channel);
 
 private:
   Ui::MainWindow *ui;
   LineCalculator calculator_;
+  MicrostripFullModel fullModel_;
   DataGenerator generator_;
-  ClassifierBase *classifier_; // указатель на текущий классификатор
   LogisticRegression lr_;
   LDA lda_;
   NaiveBayes nb_;
+  ClassifierBase *classifier_;
+  std::string currentClassifierName_;
+
   std::vector<std::vector<double>> features_;
   std::vector<int> labels_;
-  std::string currentClassifierName_;
+  std::vector<double> currentFreqs_;
+  int currentDefectClass_ = 1;
+  double currentDefectMagnitude_ = 0.5;
+  std::vector<std::complex<double>> hodographTotal_, hodographVert_,
+      hodographHoriz_;
+
+  ComplexPlot *totalPlot_, *vertPlot_, *horizPlot_;
+  ComplexPlot *iPlot_, *qPlot_;
 
   void updateParametersOutput();
   void updateToleranceOutput();
+  void printMetrics(const std::vector<int> &pred,
+                    const std::vector<int> &trueLabels);
   void appendToTerminal(const QString &text);
   void appendToOutput(const QString &text);
   void loadSettingsFromJson(const QJsonObject &json);
   QJsonObject saveSettingsToJson() const;
   void setupCharts();
-  void updateHodographs();
-  void updateQuadrature(int channel);
 };
 
 #endif

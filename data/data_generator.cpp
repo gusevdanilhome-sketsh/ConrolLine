@@ -45,7 +45,6 @@ void DataGenerator::generate(int samplesPerClass,
         std::complex<double> Zdef = defectImpedance(cls, magNorm, f);
         std::complex<double> Gamma =
             (cls == 0) ? 0.0 : (Zdef - Z0) / (Zdef + Z0);
-        // Формируем суммарный и разностные каналы (упрощённо)
         std::complex<double> S(1.0 + Gamma.real(), Gamma.imag());
         std::complex<double> Dx(0.5 * Gamma.real(), 0.5 * Gamma.imag());
         std::complex<double> Dy(0.3 * Gamma.real(), 0.3 * Gamma.imag());

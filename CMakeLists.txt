@@ -4,7 +4,7 @@ project(ConrolLine LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools Charts)
 
 qt_standard_project_setup()
 
@@ -16,6 +16,8 @@ qt_add_executable(ConrolLine
     mainwindow.ui
     models/line_calculator.cpp
     models/line_calculator.h
+    models/microstrip_full.cpp
+    models/microstrip_full.h
     data/data_generator.cpp
     data/data_generator.h
     classifiers/logistic_regression.cpp
@@ -25,6 +27,10 @@ qt_add_executable(ConrolLine
     classifiers/naive_bayes.cpp
     classifiers/naive_bayes.h
     classifiers/classifier_base.h
+    utils/complex_plot.cpp
+    utils/complex_plot.h
+    utils/matrix_utils.cpp
+    utils/matrix_utils.h
 )
 
 target_include_directories(ConrolLine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -38,6 +44,7 @@ target_link_libraries(ConrolLine
     PRIVATE
         Qt::Core
         Qt::Widgets
+        Qt::Charts
 )
 
 install(TARGETS ConrolLine

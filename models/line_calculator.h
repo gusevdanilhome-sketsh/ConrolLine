@@ -10,7 +10,7 @@ public:
   double calcEffPermittivity(double freq_hz) const;
   double calcAttenuation(double freq_hz) const;
 
-private:
+protected:
   double width_m_, thickness_m_, height_m_, er_, tand_, sigma_;
 };
 

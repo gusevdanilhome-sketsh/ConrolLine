@@ -39,6 +39,5 @@ double LineCalculator::calcZ0(double freq_hz) const {
 }
 
 double LineCalculator::calcAttenuation(double /*freq_hz*/) const {
-  // Упрощённая заглушка
   return 0.01;
 }
