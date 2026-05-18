@@ -1,6 +1,9 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "classifiers/logistic_regression.h"
+#include "data/data_generator.h"
+#include "models/line_calculator.h"
 #include <QJsonObject>
 #include <QMainWindow>
 #include <vector>
@@ -16,40 +19,30 @@ class MainWindow : public QMainWindow {
   Q_OBJECT
 
 public:
-  explicit MainWindow(QWidget *parent = nullptr);
+  MainWindow(QWidget *parent = nullptr);
   ~MainWindow();
 
 private slots:
-  void onSaveConfiguration();
-  void onLoadConfiguration();
-  void onResetConfiguration();
-  void onParametersChanged();
-  void onToleranceChanged();
   void onGenerateData();
-  void onTrainClassifier();
+  void onTrain();
   void onClassify();
+  void onSaveConfig();
+  void onLoadConfig();
+  void onResetConfig();
+  void onParametersChanged();
 
 private:
   Ui::MainWindow *ui;
+  LineCalculator calculator_;
+  DataGenerator generator_;
+  LogisticRegression classifier_;
+  std::vector<std::vector<double>> features_;
+  std::vector<int> labels_;
 
-  // Простые поля вместо сложных моделей
-  double currentWidth, currentThickness, currentHeight, currentEr,
-      currentLossTang, currentSigma;
-  double tolWidth, tolThickness, tolHeight;
-
-  void updateParametersOutput();
-  void updateToleranceOutput();
-  void appendToTerminal(const QString &text);
-  void appendToOutput(const QString &text);
-
-  // Вспомогательные расчёты (упрощённые)
-  double calcImpedance() const;
-  double calcEffPermittivity() const;
-  double calcAttenuation() const;
-
-  // Для генерации данных (заглушка)
-  void generateDummyData();
-  void trainDummyClassifier();
+  void appendToTerminal(const QString &txt);
+  void updateLineParams();
+  void loadSettings(const QJsonObject &obj);
+  QJsonObject saveSettings() const;
 };
 
-#endif // MAINWINDOW_H
+#endif

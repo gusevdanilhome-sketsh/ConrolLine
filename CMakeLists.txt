@@ -14,7 +14,21 @@ qt_add_executable(ConrolLine
     mainwindow.cpp
     mainwindow.h
     mainwindow.ui
+    models/line_calculator.cpp
+    models/line_calculator.h
+    data/data_generator.cpp
+    data/data_generator.h
+    classifiers/logistic_regression.cpp
+    classifiers/logistic_regression.h
+    classifiers/lda.cpp
+    classifiers/lda.h
+    classifiers/naive_bayes.cpp
+    classifiers/naive_bayes.h
+    classifiers/classifier_base.h
 )
+
+# Добавляем корневую директорию в пути поиска заголовков
+target_include_directories(ConrolLine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 qt_add_translations(
     TARGETS ConrolLine
