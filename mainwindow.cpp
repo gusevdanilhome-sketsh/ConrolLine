@@ -10,15 +10,16 @@
 #include <QMessageBox>
 #include <QTextBrowser>
 #include <QVBoxLayout>
+#include <numeric>
+#include <random>
 
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), generator_(calculator_),
       classifier_(&lr_), currentClassifierName_("lr") {
   ui->setupUi(this);
-  qDebug() << "MainWindow constructor started";
 
-  // Установка минимальных значений для спинбоксов
+  // Установка минимальных значений
   ui->width_conductor_double_spin_box->setMinimum(1e-6);
   ui->thickness_conductor_double_spin_box->setMinimum(1e-6);
   ui->thickness_substrate_double_spin_box->setMinimum(1e-6);
@@ -29,7 +30,7 @@ MainWindow::MainWindow(QWidget *parent)
   ui->thickness_conductor_double_spin_box_2->setMinimum(0.0);
   ui->thickness_substrate_double_spin_box_2->setMinimum(0.0);
 
-  // Установка начальных значений
+  // Начальные значения
   ui->width_conductor_double_spin_box->setValue(0.0002);
   ui->thickness_conductor_double_spin_box->setValue(35e-6);
   ui->thickness_substrate_double_spin_box->setValue(0.001);
@@ -41,7 +42,7 @@ MainWindow::MainWindow(QWidget *parent)
   ui->thickness_conductor_double_spin_box_2->setValue(35e-6);
   ui->thickness_substrate_double_spin_box_2->setValue(0.001);
 
-  // Подключение сигналов
+  // Сигналы
   connect(ui->saving_reconfiguration_push_button, &QPushButton::clicked, this,
           &MainWindow::onSaveConfiguration);
   connect(ui->booting_configuration_push_utton, &QPushButton::clicked, this,
@@ -123,20 +124,16 @@ MainWindow::MainWindow(QWidget *parent)
     ui->input_line_edit->clear();
   });
 
-  // Инициализация параметров
   onParametersChanged();
   onToleranceChanged();
   setupCharts();
 
   lr_.setHyperparameters(0.01, 500, 0.01, 32);
   generator_.setNoiseStd(0.05);
-  currentDefectClass_ = 1;
-  currentDefectMagnitude_ = 0.5;
 
   appendToTerminal("Program started. Commands: generate, train, classify, set "
                    "classifier lr/lda/nb, plot hodograph, plot quadrature "
                    "0/1/2, set defect class 0..4, set defect mag 0..1");
-  qDebug() << "MainWindow constructor finished";
 }
 
 MainWindow::~MainWindow() { delete ui; }
@@ -271,7 +268,6 @@ void MainWindow::onSetClassifier(const QString &name) {
   }
 }
 
-// ------------------- JSON config -------------------
 void MainWindow::onSaveConfiguration() {
   QString fn = QFileDialog::getSaveFileName(this, "Save config", "", "*.json");
   if (fn.isEmpty())
@@ -369,7 +365,6 @@ void MainWindow::appendToOutput(const QString &text) {
       QDateTime::currentDateTime().toString("[hh:mm:ss] ") + text);
 }
 
-// ------------------- Real visualization -------------------
 void MainWindow::setupCharts() {
   auto *totalFrame = ui->total_channel_frame;
   totalFrame->setLayout(new QVBoxLayout);

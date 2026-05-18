@@ -17,14 +17,12 @@ public:
 private:
   double learning_rate_;
   int max_epochs_;
-  double lambda_; // L2 regularization strength
+  double lambda_;
   int batch_size_;
   int num_classes_;
   int num_features_;
-  std::vector<std::vector<double>> weights_; // num_classes x num_features
+  std::vector<std::vector<double>> weights_;
   std::vector<double> biases_;
-
-  // Вспомогательные функции
   void softmax(std::vector<double> &logits) const;
   double computeLoss(const std::vector<std::vector<double>> &X,
                      const std::vector<int> &y) const;

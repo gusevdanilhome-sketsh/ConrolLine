@@ -1,6 +1,7 @@
 #include "logistic_regression.h"
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 #include <random>
 
 
@@ -31,7 +32,7 @@ double
 LogisticRegression::computeLoss(const std::vector<std::vector<double>> &X,
                                 const std::vector<int> &y) const {
   double loss = 0.0;
-  int n = static_cast<int>(X.size());
+  int n = (int)X.size();
   for (int i = 0; i < n; ++i) {
     std::vector<double> scores(num_classes_, 0.0);
     for (int c = 0; c < num_classes_; ++c) {
@@ -54,7 +55,7 @@ void LogisticRegression::computeGradients(
     const std::vector<std::vector<double>> &batchX,
     const std::vector<int> &batchY, std::vector<std::vector<double>> &gradW,
     std::vector<double> &gradB) const {
-  int batchSize = static_cast<int>(batchX.size());
+  int batchSize = (int)batchX.size();
   gradW.assign(num_classes_, std::vector<double>(num_features_, 0.0));
   gradB.assign(num_classes_, 0.0);
   for (int i = 0; i < batchSize; ++i) {
@@ -87,7 +88,7 @@ void LogisticRegression::train(const std::vector<std::vector<double>> &X,
                                const std::vector<int> &y) {
   if (X.empty())
     return;
-  num_features_ = static_cast<int>(X[0].size());
+  num_features_ = (int)X[0].size();
   num_classes_ = *std::max_element(y.begin(), y.end()) + 1;
   std::random_device rd;
   std::mt19937 gen(rd());
@@ -98,8 +99,7 @@ void LogisticRegression::train(const std::vector<std::vector<double>> &X,
     for (int j = 0; j < num_features_; ++j)
       weights_[c][j] = dist(gen);
   std::vector<int> indices(X.size());
-  for (size_t i = 0; i < indices.size(); ++i)
-    indices[i] = static_cast<int>(i);
+  std::iota(indices.begin(), indices.end(), 0);
   for (int epoch = 0; epoch < max_epochs_; ++epoch) {
     std::shuffle(indices.begin(), indices.end(), gen);
     for (size_t start = 0; start < indices.size(); start += batch_size_) {

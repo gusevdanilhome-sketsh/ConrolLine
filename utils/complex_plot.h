@@ -27,4 +27,4 @@ private:
   QValueAxis *axisY_;
 };
 
-#endif
+#endif // COMPLEX_PLOT_H

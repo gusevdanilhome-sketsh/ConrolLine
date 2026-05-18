@@ -7,8 +7,10 @@
 #include "data/data_generator.h"
 #include "models/line_calculator.h"
 #include "models/microstrip_full.h"
+#include "utils/complex_plot.h"
 #include <QJsonObject>
 #include <QMainWindow>
+#include <string>
 #include <vector>
 
 
@@ -16,7 +18,6 @@ QT_BEGIN_NAMESPACE
 namespace Ui {
 class MainWindow;
 }
-class ComplexPlot;
 QT_END_NAMESPACE
 
 class MainWindow : public QMainWindow {

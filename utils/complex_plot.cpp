@@ -23,6 +23,7 @@ void ComplexPlot::setData(const std::vector<std::complex<double>> &points,
   chart_->removeAllSeries();
   if (points.empty())
     return;
+
   if (asScatter) {
     QScatterSeries *series = new QScatterSeries();
     series->setMarkerSize(8);
@@ -39,8 +40,8 @@ void ComplexPlot::setData(const std::vector<std::complex<double>> &points,
     series->attachAxis(axisX_);
     series->attachAxis(axisY_);
   }
-  chart_->createDefaultAxes();
-  // Удаляем созданные по умолчанию оси и подключаем наши
+
+  // Удаляем оси, созданные по умолчанию, и подключаем свои
   auto axesX = chart_->axes(Qt::Horizontal);
   if (!axesX.isEmpty())
     chart_->removeAxis(axesX.first());
