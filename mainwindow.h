@@ -8,8 +8,13 @@
 #include "models/line_calculator.h"
 #include "models/microstrip_full.h"
 #include "utils/complex_plot.h"
+#include <QComboBox>
+#include <QDoubleSpinBox>
 #include <QJsonObject>
 #include <QMainWindow>
+#include <QPushButton>
+#include <QSpinBox>
+#include <QTextEdit>
 #include <string>
 #include <vector>
 
@@ -40,6 +45,13 @@ private slots:
   void updateHodographs();
   void updateQuadrature(int channel);
 
+  // Новые слоты для UI во frame
+  void onClassifierSelectionChanged(int index);
+  void onGenerateDataClicked();
+  void onTrainClicked();
+  void onClassifyClicked();
+  void updateMetricsDisplay();
+
 private:
   Ui::MainWindow *ui;
   LineCalculator calculator_;
@@ -61,6 +73,19 @@ private:
 
   ComplexPlot *totalPlot_, *vertPlot_, *horizPlot_;
   ComplexPlot *iPlot_, *qPlot_;
+
+  // Виджеты для настройки классификации и вывода метрик (будут размещены в
+  // ui->frame)
+  QComboBox *classifierCombo_;
+  QDoubleSpinBox *learningRateSpin_;
+  QSpinBox *epochsSpin_;
+  QDoubleSpinBox *lambdaSpin_;
+  QDoubleSpinBox *noiseStdSpin_;
+  QSpinBox *samplesPerClassSpin_;
+  QPushButton *generateBtn_;
+  QPushButton *trainBtn_;
+  QPushButton *classifyBtn_;
+  QTextEdit *metricsTextEdit_;
 
   void updateParametersOutput();
   void updateToleranceOutput();

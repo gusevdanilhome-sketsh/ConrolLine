@@ -4,6 +4,9 @@
 #include <QDateTime>
 #include <QDoubleSpinBox>
 #include <QFileDialog>
+#include <QFormLayout>
+#include <QGroupBox>
+#include <QHBoxLayout>
 #include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
@@ -42,7 +45,7 @@ MainWindow::MainWindow(QWidget *parent)
   ui->thickness_conductor_double_spin_box_2->setValue(35e-6);
   ui->thickness_substrate_double_spin_box_2->setValue(0.001);
 
-  // Сигналы
+  // Сигналы существующих элементов
   connect(ui->saving_reconfiguration_push_button, &QPushButton::clicked, this,
           &MainWindow::onSaveConfiguration);
   connect(ui->booting_configuration_push_utton, &QPushButton::clicked, this,
@@ -90,7 +93,7 @@ MainWindow::MainWindow(QWidget *parent)
           QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
           &MainWindow::onToleranceChanged);
 
-  // Консольные команды
+  // Консольные команды (оставляем)
   connect(ui->input_line_edit, &QLineEdit::returnPressed, this, [this]() {
     QString cmd = ui->input_line_edit->text().trimmed();
     if (cmd == "generate")
@@ -128,8 +131,130 @@ MainWindow::MainWindow(QWidget *parent)
   onToleranceChanged();
   setupCharts();
 
+  // Настройка генератора и классификатора по умолчанию
   lr_.setHyperparameters(0.01, 500, 0.01, 32);
   generator_.setNoiseStd(0.05);
+
+  // ========== СОЗДАНИЕ ПОЛЬЗОВАТЕЛЬСКОГО ИНТЕРФЕЙСА В frame ==========
+  // Очищаем существующий layout во frame (если что-то было)
+  QLayout *oldLayout = ui->frame->layout();
+  if (oldLayout) {
+    QLayoutItem *item;
+    while ((item = oldLayout->takeAt(0)) != nullptr) {
+      delete item->widget();
+      delete item;
+    }
+    delete oldLayout;
+  }
+  QGridLayout *frameLayout = new QGridLayout(ui->frame);
+  ui->frame->setLayout(frameLayout);
+
+  // Группа настройки данных
+  QGroupBox *dataGroup = new QGroupBox("Генерация данных", this);
+  QFormLayout *dataLayout = new QFormLayout(dataGroup);
+  noiseStdSpin_ = new QDoubleSpinBox(this);
+  noiseStdSpin_->setRange(0.0, 0.5);
+  noiseStdSpin_->setSingleStep(0.01);
+  noiseStdSpin_->setDecimals(3);
+  noiseStdSpin_->setValue(0.05);
+  dataLayout->addRow("Стандартное отклонение шума:", noiseStdSpin_);
+
+  samplesPerClassSpin_ = new QSpinBox(this);
+  samplesPerClassSpin_->setRange(50, 1000);
+  samplesPerClassSpin_->setSingleStep(50);
+  samplesPerClassSpin_->setValue(200);
+  dataLayout->addRow("Образцов на класс:", samplesPerClassSpin_);
+
+  generateBtn_ = new QPushButton("Сгенерировать данные", this);
+  dataLayout->addRow(generateBtn_);
+  frameLayout->addWidget(dataGroup, 0, 0, 1, 2);
+
+  // Группа настройки классификатора
+  QGroupBox *classifierGroup = new QGroupBox("Классификатор", this);
+  QFormLayout *classifierLayout = new QFormLayout(classifierGroup);
+  classifierCombo_ = new QComboBox(this);
+  classifierCombo_->addItems({"Логистическая регрессия (Softmax)",
+                              "Линейный дискриминантный анализ (LDA)",
+                              "Наивный Байес (GaussianNB)"});
+  classifierLayout->addRow("Тип:", classifierCombo_);
+
+  learningRateSpin_ = new QDoubleSpinBox(this);
+  learningRateSpin_->setRange(1e-6, 1.0);
+  learningRateSpin_->setDecimals(6);
+  learningRateSpin_->setSingleStep(0.001);
+  learningRateSpin_->setValue(0.01);
+  classifierLayout->addRow("Скорость обучения (LR):", learningRateSpin_);
+
+  epochsSpin_ = new QSpinBox(this);
+  epochsSpin_->setRange(10, 2000);
+  epochsSpin_->setSingleStep(50);
+  epochsSpin_->setValue(500);
+  classifierLayout->addRow("Количество эпох:", epochsSpin_);
+
+  lambdaSpin_ = new QDoubleSpinBox(this);
+  lambdaSpin_->setRange(0.0, 1.0);
+  lambdaSpin_->setDecimals(6);
+  lambdaSpin_->setSingleStep(0.01);
+  lambdaSpin_->setValue(0.01);
+  classifierLayout->addRow("Сила регуляризации (λ):", lambdaSpin_);
+
+  frameLayout->addWidget(classifierGroup, 1, 0, 1, 2);
+
+  // Кнопки управления
+  QHBoxLayout *buttonLayout = new QHBoxLayout;
+  trainBtn_ = new QPushButton("Обучить", this);
+  classifyBtn_ = new QPushButton("Классифицировать", this);
+  buttonLayout->addWidget(trainBtn_);
+  buttonLayout->addWidget(classifyBtn_);
+  frameLayout->addLayout(buttonLayout, 2, 0, 1, 2);
+
+  // Вывод метрик
+  QGroupBox *metricsGroup = new QGroupBox("Метрики качества", this);
+  QVBoxLayout *metricsLayout = new QVBoxLayout(metricsGroup);
+  metricsTextEdit_ = new QTextEdit(this);
+  metricsTextEdit_->setReadOnly(true);
+  metricsTextEdit_->setMinimumHeight(200);
+  metricsLayout->addWidget(metricsTextEdit_);
+  frameLayout->addWidget(metricsGroup, 3, 0, 1, 2);
+
+  // Подключение сигналов новых элементов
+  connect(generateBtn_, &QPushButton::clicked, this,
+          &MainWindow::onGenerateDataClicked);
+  connect(trainBtn_, &QPushButton::clicked, this, &MainWindow::onTrainClicked);
+  connect(classifyBtn_, &QPushButton::clicked, this,
+          &MainWindow::onClassifyClicked);
+  connect(classifierCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+          this, &MainWindow::onClassifierSelectionChanged);
+  connect(learningRateSpin_,
+          QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+          [this](double val) {
+            if (currentClassifierName_ == "lr")
+              lr_.setHyperparameters(val, epochsSpin_->value(),
+                                     lambdaSpin_->value(), 32);
+            appendToTerminal(QString("Learning rate обновлён: %1").arg(val));
+          });
+  connect(epochsSpin_, QOverload<int>::of(&QSpinBox::valueChanged),
+          [this](int val) {
+            if (currentClassifierName_ == "lr")
+              lr_.setHyperparameters(learningRateSpin_->value(), val,
+                                     lambdaSpin_->value(), 32);
+            appendToTerminal(QString("Эпох обновлено: %1").arg(val));
+          });
+  connect(lambdaSpin_, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+          [this](double val) {
+            if (currentClassifierName_ == "lr")
+              lr_.setHyperparameters(learningRateSpin_->value(),
+                                     epochsSpin_->value(), val, 32);
+            appendToTerminal(QString("Регуляризация λ обновлена: %1").arg(val));
+          });
+  connect(noiseStdSpin_, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+          [this](double val) {
+            generator_.setNoiseStd(val);
+            appendToTerminal(QString("Уровень шума установлен: %1").arg(val));
+          });
+
+  // Установка начального классификатора
+  onClassifierSelectionChanged(0);
 
   appendToTerminal("Program started. Commands: generate, train, classify, set "
                    "classifier lr/lda/nb, plot hodograph, plot quadrature "
@@ -193,7 +318,7 @@ void MainWindow::onGenerateData() {
   std::vector<double> freqs;
   for (int f = 1; f <= 10; ++f)
     freqs.push_back(f * 1e9);
-  generator_.generate(200, freqs, features_, labels_);
+  generator_.generate(samplesPerClassSpin_->value(), freqs, features_, labels_);
   appendToTerminal(QString("Generated %1 samples, each with %2 features")
                        .arg(features_.size())
                        .arg(features_.empty() ? 0 : (int)features_[0].size()));
@@ -219,6 +344,7 @@ void MainWindow::onClassify() {
   appendToTerminal("Classifying...");
   auto pred = classifier_->predict(features_);
   printMetrics(pred, labels_);
+  updateMetricsDisplay(); // обновляем текстовое поле в frame
 }
 
 void MainWindow::printMetrics(const std::vector<int> &pred,
@@ -471,4 +597,85 @@ void MainWindow::updateQuadrature(int channel) {
   iPlot_->setData(iPoints, true);
   qPlot_->setData(qPoints, true);
   appendToTerminal(QString("Quadrature for channel %1 updated").arg(channel));
+}
+
+// ========== Реализация новых слотов для UI ==========
+void MainWindow::onClassifierSelectionChanged(int index) {
+  QString name;
+  switch (index) {
+  case 0:
+    name = "lr";
+    break;
+  case 1:
+    name = "lda";
+    break;
+  case 2:
+    name = "nb";
+    break;
+  default:
+    name = "lr";
+  }
+  onSetClassifier(name);
+  // В зависимости от выбранного классификатора делаем активными/неактивными
+  // настройки
+  bool isLR = (index == 0);
+  learningRateSpin_->setEnabled(isLR);
+  epochsSpin_->setEnabled(isLR);
+  lambdaSpin_->setEnabled(isLR);
+  if (!isLR) {
+    // Для LDA и NB можно при желании установить другие гиперпараметры, но пока
+    // просто игнорируем
+    appendToTerminal("Для LDA и NB гиперпараметры не используются.");
+  } else {
+    // Принудительно устанавливаем параметры LR из текущих значений спинбоксов
+    lr_.setHyperparameters(learningRateSpin_->value(), epochsSpin_->value(),
+                           lambdaSpin_->value(), 32);
+  }
+}
+
+void MainWindow::onGenerateDataClicked() { onGenerateData(); }
+
+void MainWindow::onTrainClicked() { onTrainClassifier(); }
+
+void MainWindow::onClassifyClicked() { onClassify(); }
+
+void MainWindow::updateMetricsDisplay() {
+  if (features_.empty() || labels_.empty()) {
+    metricsTextEdit_->setText("Нет данных. Сначала сгенерируйте выборку.");
+    return;
+  }
+  // Получаем предсказания и вычисляем метрики
+  auto pred = classifier_->predict(features_);
+  int nClasses = 5;
+  std::vector<int> tp(nClasses, 0), fp(nClasses, 0), fn(nClasses, 0);
+  for (size_t i = 0; i < pred.size(); ++i) {
+    int t = labels_[i];
+    int p = pred[i];
+    if (p == t)
+      tp[t]++;
+    else {
+      fp[p]++;
+      fn[t]++;
+    }
+  }
+  int correct = std::accumulate(tp.begin(), tp.end(), 0);
+  double acc = 100.0 * correct / pred.size();
+
+  QString html = "<b>Общая точность (Accuracy):</b> " +
+                 QString::number(acc, 'f', 2) + "%<br><br>";
+  html += "<table border='1' cellpadding='5' cellspacing='0'>";
+  html += "<tr><th>Класс</th><th>Precision (%)</th><th>Recall "
+          "(%)</th><th>F1-score (%)</th></tr>";
+  for (int c = 0; c < nClasses; ++c) {
+    double prec = (tp[c] + fp[c] == 0) ? 0 : 100.0 * tp[c] / (tp[c] + fp[c]);
+    double rec = (tp[c] + fn[c] == 0) ? 0 : 100.0 * tp[c] / (tp[c] + fn[c]);
+    double f1 = (prec + rec == 0) ? 0 : 2 * prec * rec / (prec + rec);
+    html += QString("<tr><td>%1</td><td>%2</td><td>%3</td><td>%4</td></tr>")
+                .arg(c)
+                .arg(prec, 0, 'f', 1)
+                .arg(rec, 0, 'f', 1)
+                .arg(f1, 0, 'f', 1);
+  }
+  html += "</table>";
+  metricsTextEdit_->setHtml(html);
 }
