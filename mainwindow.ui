@@ -1,0 +1,609 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1920</width>
+    <height>1080</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>1920</width>
+    <height>1080</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>1920</width>
+    <height>1080</height>
+   </size>
+  </property>
+  <property name="cursor">
+   <cursorShape>ArrowCursor</cursorShape>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <widget class="QWidget" name="main_widget">
+   <layout class="QGridLayout" name="gridLayout">
+    <item row="0" column="1">
+     <widget class="QSplitter" name="splitter_2">
+      <property name="orientation">
+       <enum>Qt::Orientation::Vertical</enum>
+      </property>
+      <widget class="QSplitter" name="splitter">
+       <property name="enabled">
+        <bool>true</bool>
+       </property>
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>200</height>
+        </size>
+       </property>
+       <property name="baseSize">
+        <size>
+         <width>0</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <widget class="QTabWidget" name="parameters_line_tab_widget">
+        <property name="minimumSize">
+         <size>
+          <width>200</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>400</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="currentIndex">
+         <number>1</number>
+        </property>
+        <property name="tabsClosable">
+         <bool>false</bool>
+        </property>
+        <widget class="QWidget" name="parameters_tab">
+         <attribute name="title">
+          <string>Параметры</string>
+         </attribute>
+         <layout class="QGridLayout" name="gridLayout_2">
+          <item row="3" column="0" colspan="2">
+           <widget class="QLabel" name="thickness_conductor_double_label">
+            <property name="text">
+             <string>Толщина проводника, м</string>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="0" colspan="2">
+           <widget class="QLabel" name="tangence_ougla_electric_loss_double_label">
+            <property name="text">
+             <string>Тангенс угла потерь</string>
+            </property>
+           </widget>
+          </item>
+          <item row="10" column="0" colspan="2">
+           <widget class="QDoubleSpinBox" name="tangence_ougla_electric_loss_double_spin_box">
+            <property name="decimals">
+             <number>6</number>
+            </property>
+            <property name="singleStep">
+             <double>0.000001000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QPushButton" name="saving_reconfiguration_push_button">
+            <property name="text">
+             <string>Сохранить конфигурацию</string>
+            </property>
+           </widget>
+          </item>
+          <item row="15" column="0" colspan="2">
+           <widget class="QTextBrowser" name="output_parameters_text_browser"/>
+          </item>
+          <item row="11" column="0" colspan="2">
+           <widget class="QLabel" name="conductive_conductor_double_label">
+            <property name="text">
+             <string>Проводимость проводника, Ом*м</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QPushButton" name="booting_configuration_push_utton">
+            <property name="text">
+             <string>Загрузить конфигурацию</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0" colspan="2">
+           <widget class="QDoubleSpinBox" name="thickness_conductor_double_spin_box">
+            <property name="decimals">
+             <number>6</number>
+            </property>
+            <property name="singleStep">
+             <double>0.000001000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="8" column="0" colspan="2">
+           <widget class="QDoubleSpinBox" name="dielectric_permittion_substrate_double_spin_box">
+            <property name="decimals">
+             <number>6</number>
+            </property>
+            <property name="singleStep">
+             <double>0.000001000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="0" colspan="2">
+           <widget class="QDoubleSpinBox" name="thickness_substrate_double_spin_box">
+            <property name="decimals">
+             <number>6</number>
+            </property>
+            <property name="singleStep">
+             <double>0.000001000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="0" colspan="2">
+           <widget class="QLabel" name="dielectric_permittion_substrate_double_label">
+            <property name="text">
+             <string>Диэлектрическая проницаемость подложки</string>
+            </property>
+           </widget>
+          </item>
+          <item row="12" column="0" colspan="2">
+           <widget class="QDoubleSpinBox" name="conductive_conductor_double_spin_box">
+            <property name="decimals">
+             <number>6</number>
+            </property>
+            <property name="singleStep">
+             <double>0.000001000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="13" column="0" colspan="2">
+           <widget class="QLabel" name="field_strength_conductor_breakdown_double_label">
+            <property name="text">
+             <string>Напряжённость поля пробоя проводника, МВ/м</string>
+            </property>
+           </widget>
+          </item>
+          <item row="14" column="0" colspan="2">
+           <widget class="QDoubleSpinBox" name="field_strength_conductor_breakdown_double_spin_box">
+            <property name="decimals">
+             <number>6</number>
+            </property>
+            <property name="singleStep">
+             <double>0.000001000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0" colspan="2">
+           <widget class="QDoubleSpinBox" name="width_conductor_double_spin_box">
+            <property name="decimals">
+             <number>6</number>
+            </property>
+            <property name="singleStep">
+             <double>0.000001000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0" colspan="2">
+           <widget class="QLabel" name="thickness_substrate_double_label">
+            <property name="text">
+             <string>Толщина подложки, м</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0" colspan="2">
+           <widget class="QLabel" name="width_conductor_double_label">
+            <property name="text">
+             <string>Ширина проводника, м</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+        <widget class="QWidget" name="tolerance_tab">
+         <attribute name="title">
+          <string>Допуски</string>
+         </attribute>
+         <layout class="QGridLayout" name="gridLayout_5">
+          <item row="0" column="0">
+           <widget class="QPushButton" name="saving_reconfiguration_push_button_2">
+            <property name="text">
+             <string>Сохранить конфигурацию</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QPushButton" name="booting_configuration_push_utton_2">
+            <property name="text">
+             <string>Загрузить конфигурацию</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0" colspan="2">
+           <widget class="QLabel" name="width_conductor_double_label_2">
+            <property name="text">
+             <string>Ширина проводника, м</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0" colspan="2">
+           <widget class="QDoubleSpinBox" name="width_conductor_double_spin_box_2">
+            <property name="decimals">
+             <number>6</number>
+            </property>
+            <property name="singleStep">
+             <double>0.000001000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0" colspan="2">
+           <widget class="QLabel" name="thickness_conductor_double_label_2">
+            <property name="text">
+             <string>Толщина проводника, м</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0" colspan="2">
+           <widget class="QDoubleSpinBox" name="thickness_conductor_double_spin_box_2">
+            <property name="decimals">
+             <number>6</number>
+            </property>
+            <property name="singleStep">
+             <double>0.000001000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0" colspan="2">
+           <widget class="QLabel" name="thickness_substrate_double_label_2">
+            <property name="text">
+             <string>Толщина подложки, м</string>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="0" colspan="2">
+           <widget class="QDoubleSpinBox" name="thickness_substrate_double_spin_box_2">
+            <property name="decimals">
+             <number>6</number>
+            </property>
+            <property name="singleStep">
+             <double>0.000001000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="0" colspan="2">
+           <widget class="QTextBrowser" name="output_parameters_text_browser_2"/>
+          </item>
+         </layout>
+        </widget>
+       </widget>
+       <widget class="QFrame" name="workspace_frame">
+        <property name="minimumSize">
+         <size>
+          <width>200</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="frameShape">
+         <enum>QFrame::Shape::StyledPanel</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Shadow::Raised</enum>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_7">
+         <item row="0" column="1">
+          <widget class="QPushButton" name="reset_configuration_push_button">
+           <property name="text">
+            <string>Сброс конфигурации</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="0">
+          <widget class="QPushButton" name="saving_reconfiguration_push_button_3">
+           <property name="text">
+            <string>Сохранить конфигурацию</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="2">
+          <widget class="QPushButton" name="booting_configuration_push_utton_3">
+           <property name="text">
+            <string>Загрузить конфигурацию</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0" colspan="3">
+          <widget class="QFrame" name="frame">
+           <property name="frameShape">
+            <enum>QFrame::Shape::StyledPanel</enum>
+           </property>
+           <property name="frameShadow">
+            <enum>QFrame::Shadow::Raised</enum>
+           </property>
+           <layout class="QGridLayout" name="gridLayout_8"/>
+          </widget>
+         </item>
+         <item row="2" column="0" colspan="2">
+          <widget class="QProgressBar" name="process_progress_bar">
+           <property name="value">
+            <number>0</number>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="2">
+          <widget class="QLabel" name="process_label">
+           <property name="maximumSize">
+            <size>
+             <width>200</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Процесс</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QTabWidget" name="hodographs_tab_widget">
+        <property name="minimumSize">
+         <size>
+          <width>200</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>400</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="currentIndex">
+         <number>0</number>
+        </property>
+        <widget class="QWidget" name="hodograph_tab">
+         <attribute name="title">
+          <string>Годограф</string>
+         </attribute>
+         <layout class="QGridLayout" name="gridLayout_6">
+          <item row="0" column="0">
+           <layout class="QVBoxLayout" name="total_channel_vertical_layout">
+            <item>
+             <widget class="QLabel" name="total_channel_label">
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>15</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Суммарный канал</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QFrame" name="total_channel_frame">
+              <property name="frameShape">
+               <enum>QFrame::Shape::StyledPanel</enum>
+              </property>
+              <property name="frameShadow">
+               <enum>QFrame::Shadow::Raised</enum>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="1" column="0">
+           <layout class="QVBoxLayout" name="verticy_channel_vertical_layout">
+            <item>
+             <widget class="QLabel" name="verticy_channel_label">
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>15</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Вертикальный канал</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QFrame" name="verticy_channel_frame">
+              <property name="frameShape">
+               <enum>QFrame::Shape::StyledPanel</enum>
+              </property>
+              <property name="frameShadow">
+               <enum>QFrame::Shadow::Raised</enum>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="2" column="0">
+           <layout class="QVBoxLayout" name="horizontal_channel_vertical_layout">
+            <item>
+             <widget class="QLabel" name="horizontal_channel_label">
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>15</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Горизонтальный канал</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QFrame" name="horizontal_channel_frame">
+              <property name="frameShape">
+               <enum>QFrame::Shape::StyledPanel</enum>
+              </property>
+              <property name="frameShadow">
+               <enum>QFrame::Shadow::Raised</enum>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+        <widget class="QWidget" name="quadrature_components_tab">
+         <attribute name="title">
+          <string>Квадратурные составляющие</string>
+         </attribute>
+         <layout class="QVBoxLayout" name="verticalLayout_3">
+          <item>
+           <layout class="QVBoxLayout" name="i_component_vertical_layout">
+            <item>
+             <widget class="QLabel" name="i_component_label">
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>15</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>I (синфазная) составляющая</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QFrame" name="i_component_frame">
+              <property name="frameShape">
+               <enum>QFrame::Shape::StyledPanel</enum>
+              </property>
+              <property name="frameShadow">
+               <enum>QFrame::Shadow::Raised</enum>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QVBoxLayout" name="q_component_vertical_layout">
+            <item>
+             <widget class="QLabel" name="q_component_label">
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>15</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Q (квадратурная) составляющая</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QFrame" name="q_component_frame">
+              <property name="frameShape">
+               <enum>QFrame::Shape::StyledPanel</enum>
+              </property>
+              <property name="frameShadow">
+               <enum>QFrame::Shadow::Raised</enum>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="total_channel_radio_button">
+            <property name="text">
+             <string>Суммарный канал</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="verticy_channel_radio_button">
+            <property name="text">
+             <string>Вертикальный канал</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QRadioButton" name="horizontal_channel_radio_button">
+            <property name="text">
+             <string>Горизонтальный канал</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </widget>
+      </widget>
+      <widget class="QTabWidget" name="consol_tab_widget">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>200</height>
+        </size>
+       </property>
+       <property name="baseSize">
+        <size>
+         <width>0</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="currentIndex">
+        <number>0</number>
+       </property>
+       <widget class="QWidget" name="terminal_tab">
+        <attribute name="title">
+         <string>Terminal</string>
+        </attribute>
+        <layout class="QGridLayout" name="gridLayout_4">
+         <item row="0" column="0">
+          <widget class="QTextBrowser" name="terminal_text_browser"/>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLineEdit" name="input_line_edit"/>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="output_tab">
+        <attribute name="title">
+         <string>Output</string>
+        </attribute>
+        <layout class="QGridLayout" name="gridLayout_3">
+         <item row="0" column="0">
+          <widget class="QTextBrowser" name="output_text_browser"/>
+         </item>
+        </layout>
+       </widget>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1920</width>
+     <height>21</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
