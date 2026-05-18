@@ -27,7 +27,6 @@ qt_add_executable(ConrolLine
     classifiers/classifier_base.h
 )
 
-# Добавляем корневую директорию в пути поиска заголовков
 target_include_directories(ConrolLine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 qt_add_translations(

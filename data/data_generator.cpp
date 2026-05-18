@@ -15,11 +15,11 @@ std::complex<double> DataGenerator::defectImpedance(int cls, double mag,
   case 1:
     return {0.01 * mag, omega * 0.2e-9 * mag};
   case 2:
-    return {0.0, -1.0 / (omega * 0.1e-12 * mag)};
+    return {0.0, -1.0 / (omega * 0.1e-12 * mag + 1e-15)};
   case 3:
-    return {0.0, -1.0 / (omega * 0.15e-12 * mag)};
+    return {0.0, -1.0 / (omega * 0.15e-12 * mag + 1e-15)};
   case 4:
-    return {0.0, -1.0 / (omega * 0.12e-12 * mag)};
+    return {0.0, -1.0 / (omega * 0.12e-12 * mag + 1e-15)};
   default:
     return {calculator_.calcZ0(f), 0.0};
   }
@@ -34,16 +34,18 @@ void DataGenerator::generate(int samplesPerClass,
   std::random_device rd;
   std::mt19937 gen(rd());
   std::normal_distribution<> noise(0.0, noise_std_);
+
   for (int cls = 0; cls < 5; ++cls) {
     for (int s = 0; s < samplesPerClass; ++s) {
-      double magNorm = (cls == 0) ? 0.0 : (double)s / samplesPerClass;
+      double magNorm =
+          (cls == 0) ? 0.0 : static_cast<double>(s) / samplesPerClass;
       std::vector<double> feat;
       for (double f : freqs) {
         double Z0 = calculator_.calcZ0(f);
         std::complex<double> Zdef = defectImpedance(cls, magNorm, f);
         std::complex<double> Gamma =
             (cls == 0) ? 0.0 : (Zdef - Z0) / (Zdef + Z0);
-        // Симулируем комплексные амплитуды напряжений
+        // Формируем суммарный и разностные каналы (упрощённо)
         std::complex<double> S(1.0 + Gamma.real(), Gamma.imag());
         std::complex<double> Dx(0.5 * Gamma.real(), 0.5 * Gamma.imag());
         std::complex<double> Dy(0.3 * Gamma.real(), 0.3 * Gamma.imag());

@@ -8,7 +8,7 @@
 
 class DataGenerator {
 public:
-  DataGenerator(const LineCalculator &calc);
+  explicit DataGenerator(const LineCalculator &calc);
   void setNoiseStd(double sigma);
   void generate(int samplesPerClass, const std::vector<double> &freqs,
                 std::vector<std::vector<double>> &features,

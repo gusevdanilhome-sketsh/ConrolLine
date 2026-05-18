@@ -23,13 +23,14 @@ public:
   ~MainWindow();
 
 private slots:
-  void onGenerateData();
-  void onTrain();
-  void onClassify();
-  void onSaveConfig();
-  void onLoadConfig();
-  void onResetConfig();
+  void onSaveConfiguration();
+  void onLoadConfiguration();
+  void onResetConfiguration();
   void onParametersChanged();
+  void onToleranceChanged(); // <-- добавить
+  void onGenerateData();
+  void onTrainClassifier();
+  void onClassify();
 
 private:
   Ui::MainWindow *ui;
@@ -39,10 +40,15 @@ private:
   std::vector<std::vector<double>> features_;
   std::vector<int> labels_;
 
-  void appendToTerminal(const QString &txt);
-  void updateLineParams();
-  void loadSettings(const QJsonObject &obj);
-  QJsonObject saveSettings() const;
+  void updateParametersOutput();
+  void updateToleranceOutput();
+  void appendToTerminal(const QString &text);
+  void appendToOutput(const QString &text);
+  void loadSettingsFromJson(const QJsonObject &json);
+  QJsonObject saveSettingsToJson() const;
+  void setupCharts();                 // заглушка визуализации
+  void updateHodographs();            // заглушка
+  void updateQuadrature(int channel); // заглушка
 };
 
 #endif

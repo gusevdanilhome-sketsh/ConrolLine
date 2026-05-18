@@ -38,6 +38,7 @@ double LineCalculator::calcZ0(double freq_hz) const {
   return 120.0 * PI / (std::sqrt(er_eff) * A);
 }
 
-double LineCalculator::calcAttenuation(double freq_hz) const {
-  return 0.01; // упрощённо, чтобы не было падений
+double LineCalculator::calcAttenuation(double /*freq_hz*/) const {
+  // Упрощённая заглушка
+  return 0.01;
 }
