@@ -1,7 +1,9 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "classifiers/lda.h"
 #include "classifiers/logistic_regression.h"
+#include "classifiers/naive_bayes.h"
 #include "data/data_generator.h"
 #include "models/line_calculator.h"
 #include <QJsonObject>
@@ -27,18 +29,23 @@ private slots:
   void onLoadConfiguration();
   void onResetConfiguration();
   void onParametersChanged();
-  void onToleranceChanged(); // <-- добавить
+  void onToleranceChanged();
   void onGenerateData();
   void onTrainClassifier();
   void onClassify();
+  void onSetClassifier(const QString &name); // новая команда
 
 private:
   Ui::MainWindow *ui;
   LineCalculator calculator_;
   DataGenerator generator_;
-  LogisticRegression classifier_;
+  ClassifierBase *classifier_; // указатель на текущий классификатор
+  LogisticRegression lr_;
+  LDA lda_;
+  NaiveBayes nb_;
   std::vector<std::vector<double>> features_;
   std::vector<int> labels_;
+  std::string currentClassifierName_;
 
   void updateParametersOutput();
   void updateToleranceOutput();
@@ -46,9 +53,9 @@ private:
   void appendToOutput(const QString &text);
   void loadSettingsFromJson(const QJsonObject &json);
   QJsonObject saveSettingsToJson() const;
-  void setupCharts();                 // заглушка визуализации
-  void updateHodographs();            // заглушка
-  void updateQuadrature(int channel); // заглушка
+  void setupCharts();
+  void updateHodographs();
+  void updateQuadrature(int channel);
 };
 
 #endif

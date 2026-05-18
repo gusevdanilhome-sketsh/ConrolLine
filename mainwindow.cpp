@@ -10,9 +10,29 @@
 #include <QTextBrowser>
 #include <QVBoxLayout>
 
+void MainWindow::onSetClassifier(const QString &name) {
+  if (name == "lr") {
+    classifier_ = &lr_;
+    currentClassifierName_ = "lr";
+    appendToTerminal("Активен классификатор: логистическая регрессия");
+  } else if (name == "lda") {
+    classifier_ = &lda_;
+    currentClassifierName_ = "lda";
+    appendToTerminal("Активен классификатор: LDA (заглушка)");
+  } else if (name == "nb") {
+    classifier_ = &nb_;
+    currentClassifierName_ = "nb";
+    appendToTerminal("Активен классификатор: наивный Байес (заглушка)");
+  } else {
+    appendToTerminal("Неизвестный классификатор. Используйте: lr, lda, nb");
+  }
+}
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), ui(new Ui::MainWindow), generator_(calculator_) {
+    : QMainWindow(parent), ui(new Ui::MainWindow), generator_(calculator_),
+      classifier_(&lr_) // по умолчанию логистическая регрессия
+      ,
+      currentClassifierName_("lr") {
   ui->setupUi(this);
   qDebug() << "MainWindow constructor started";
 
@@ -95,11 +115,16 @@ MainWindow::MainWindow(QWidget *parent)
       onTrainClassifier();
     else if (cmd == "classify")
       onClassify();
-    else if (!cmd.isEmpty())
-      appendToTerminal(
-          "Неизвестная команда. Доступны: generate, train, classify");
+    else if (cmd.startsWith("set classifier ")) {
+      QString name = cmd.mid(15).trimmed();
+      onSetClassifier(name);
+    } else if (!cmd.isEmpty())
+      appendToTerminal("Неизвестная команда. Доступны: generate, train, "
+                       "classify, set classifier lr/lda/nb");
     ui->input_line_edit->clear();
   });
+
+  lr_.setHyperparameters(0.01, 500, 0.01, 32);
 
   // Первоначальный расчёт
   onParametersChanged();
@@ -182,7 +207,7 @@ void MainWindow::onTrainClassifier() {
     return;
   }
   appendToTerminal("Обучение классификатора (логистическая регрессия)...");
-  classifier_.train(features_, labels_);
+  classifier_->train(features_, labels_);
   appendToTerminal("Обучение завершено.");
   appendToOutput("Классификатор обучен.");
 }
@@ -193,7 +218,7 @@ void MainWindow::onClassify() {
     return;
   }
   appendToTerminal("Классификация...");
-  std::vector<int> pred = classifier_.predict(features_);
+  std::vector<int> pred = classifier_->predict(features_);
   int correct = 0;
   for (size_t i = 0; i < pred.size(); ++i)
     if (pred[i] == labels_[i])
