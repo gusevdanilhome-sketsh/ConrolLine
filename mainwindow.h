@@ -48,7 +48,6 @@ private slots:
   void updateHodographs();
   void updateQuadrature(int channel);
 
-  // Новые слоты для UI во frame
   void onClassifierSelectionChanged(int index);
   void onGenerateDataClicked();
   void onTrainClicked();
@@ -84,7 +83,6 @@ private:
   ComplexPlot *totalPlot_, *vertPlot_, *horizPlot_;
   ComplexPlot *iPlot_, *qPlot_;
 
-  // Виджеты для настройки классификации и вывода метрик
   QComboBox *classifierCombo_;
   QDoubleSpinBox *learningRateSpin_;
   QSpinBox *epochsSpin_;
@@ -111,7 +109,7 @@ private:
   QJsonObject saveSettingsToJson() const;
   void setupCharts();
   void setupAdditionalUi();
-  void logDetailedDataInfo();
+  void logDetailedDataInfo(); // объявлено только один раз
 };
 
 #endif

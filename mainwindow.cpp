@@ -23,6 +23,7 @@
 #include <QVBoxLayout>
 #include <QValueAxis>
 
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), generator_(calculator_),
       classifier_(&lr_), currentClassifierName_("lr") {
@@ -135,6 +136,8 @@ MainWindow::MainWindow(QWidget *parent)
 
   onParametersChanged();
   onToleranceChanged();
+
+  // Настройка графиков и дополнительного UI
   setupCharts();
   setupAdditionalUi();
 
@@ -142,8 +145,17 @@ MainWindow::MainWindow(QWidget *parent)
   lr_.setHyperparameters(0.01, 500, 0.01, 32);
   generator_.setNoiseStd(0.05);
   bayes_.setNoiseStd(0.05);
-  // Загрузка сетки параметров для байесовского классификатора
   bayes_.setParameterGrid();
+
+  // Автоматическое обновление годографов при изменении параметров дефекта через
+  // UI (виджеты созданы в setupAdditionalUi, нужно сохранить указатели) Для
+  // этого доработаем setupAdditionalUi, чтобы сохранить указатели на combobox и
+  // spinbox
+
+  // Теперь инициализируем отображение
+  updateHodographs();
+  updateQuadrature(0);
+  ui->total_channel_radio_button->setChecked(true);
 
   appendToTerminal(
       "Program started. Commands: generate, train, classify, set "
@@ -194,7 +206,39 @@ void MainWindow::setupAdditionalUi() {
   loadCsvBtn_ = new QPushButton("Загрузить из CSV", this);
   loadCsvBtn_->setToolTip("Загрузить реальные данные из CSV файла");
   dataLayout->addRow(loadCsvBtn_);
-  frameLayout->addWidget(dataGroup, 0, 0, 1, 2);
+  frameLayout->addWidget(dataGroup, 0, 0, 1, 1);
+
+  // Группа настройки дефекта для годографов
+  QGroupBox *defectGroup = new QGroupBox("Дефект для годографов", this);
+  QFormLayout *defectLayout = new QFormLayout(defectGroup);
+
+  QComboBox *defectClassCombo = new QComboBox(this);
+  defectClassCombo->addItems({"Нет дефекта", "Утонение высоты проводника",
+                              "Утонение ширины проводника", "Утонение подложки",
+                              "Изменение диэлектрической проницаемости"});
+  defectClassCombo->setCurrentIndex(currentDefectClass_);
+  defectLayout->addRow("Тип дефекта:", defectClassCombo);
+
+  QDoubleSpinBox *defectMagSpin = new QDoubleSpinBox(this);
+  defectMagSpin->setRange(0.0, 1.0);
+  defectMagSpin->setSingleStep(0.05);
+  defectMagSpin->setValue(currentDefectMagnitude_);
+  defectMagSpin->setToolTip("Величина дефекта (0..1)");
+  defectLayout->addRow("Величина дефекта:", defectMagSpin);
+
+  frameLayout->addWidget(defectGroup, 0, 1, 1, 1);
+
+  // Подключение сигналов обновления годографов
+  connect(defectClassCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+          [this](int idx) {
+            currentDefectClass_ = idx;
+            updateHodographs();
+          });
+  connect(defectMagSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+          [this](double val) {
+            currentDefectMagnitude_ = val;
+            updateHodographs();
+          });
 
   // Группа настройки классификатора
   QGroupBox *classifierGroup = new QGroupBox("Классификатор", this);
@@ -398,7 +442,6 @@ void MainWindow::onPlotConfusionMatrix() {
   }
   auto pred = classifier_->predict(features_);
   auto cm = Metrics::confusionMatrix(pred, labels_, 5);
-  // Создаём диалог с графиком
   QDialog *dialog = new QDialog(this);
   dialog->setWindowTitle("Матрица ошибок");
   QChartView *chartView = Metrics::plotConfusionMatrix(cm, 5);
@@ -413,8 +456,6 @@ void MainWindow::onPlotRocCurves() {
     appendToTerminal("Нет данных для построения ROC-кривых.");
     return;
   }
-  // Для ROC нужны вероятности. Пока поддерживаем только логистическую регрессию
-  // и байесовский.
   std::vector<std::vector<double>> probs;
   if (currentClassifierName_ == "lr") {
     probs = lr_.predictProbabilities(features_);
@@ -464,6 +505,8 @@ void MainWindow::onParametersChanged() {
   calculator_.setParams(w, t, h, er, tand, sigma);
   fullModel_.setParams(w, t, h, er, tand, sigma);
   updateParametersOutput();
+  updateHodographs(); // автообновление годографов при изменении параметров
+                      // линии
 }
 
 void MainWindow::updateParametersOutput() {
@@ -526,8 +569,6 @@ void MainWindow::logDetailedDataInfo() {
     appendToTerminal(
         QString("Class %1: %2 samples").arg(c).arg(classCounts[c]));
   }
-  // Вычислим статистику признаков (среднее, дисперсию) для первого признака как
-  // пример
   double sum = 0.0, sum2 = 0.0;
   for (const auto &feat : features_) {
     sum += feat[0];
@@ -710,24 +751,32 @@ void MainWindow::appendToOutput(const QString &text) {
 
 void MainWindow::setupCharts() {
   auto *totalFrame = ui->total_channel_frame;
+  if (totalFrame->layout())
+    delete totalFrame->layout();
   totalFrame->setLayout(new QVBoxLayout);
   totalPlot_ = new ComplexPlot(this);
   totalFrame->layout()->addWidget(totalPlot_);
   totalPlot_->setTitle("Годограф суммарного канала");
 
   auto *vertFrame = ui->verticy_channel_frame;
+  if (vertFrame->layout())
+    delete vertFrame->layout();
   vertFrame->setLayout(new QVBoxLayout);
   vertPlot_ = new ComplexPlot(this);
   vertFrame->layout()->addWidget(vertPlot_);
   vertPlot_->setTitle("Годограф вертикального канала");
 
   auto *horizFrame = ui->horizontal_channel_frame;
+  if (horizFrame->layout())
+    delete horizFrame->layout();
   horizFrame->setLayout(new QVBoxLayout);
   horizPlot_ = new ComplexPlot(this);
   horizFrame->layout()->addWidget(horizPlot_);
   horizPlot_->setTitle("Годограф горизонтального канала");
 
   auto *iFrame = ui->i_component_frame;
+  if (iFrame->layout())
+    delete iFrame->layout();
   iFrame->setLayout(new QVBoxLayout);
   iPlot_ = new ComplexPlot(this);
   iFrame->layout()->addWidget(iPlot_);
@@ -735,6 +784,8 @@ void MainWindow::setupCharts() {
   iPlot_->setAxesLabels("Частота, ГГц", "I, отн. ед.");
 
   auto *qFrame = ui->q_component_frame;
+  if (qFrame->layout())
+    delete qFrame->layout();
   qFrame->setLayout(new QVBoxLayout);
   qPlot_ = new ComplexPlot(this);
   qFrame->layout()->addWidget(qPlot_);
@@ -743,6 +794,10 @@ void MainWindow::setupCharts() {
 }
 
 void MainWindow::updateHodographs() {
+  // Защита от вызова до полной инициализации графиков
+  if (!totalPlot_ || !vertPlot_ || !horizPlot_)
+    return;
+
   currentFreqs_.clear();
   for (int f = 1; f <= 10; ++f)
     currentFreqs_.push_back(f * 1e9);
@@ -788,10 +843,21 @@ void MainWindow::updateHodographs() {
   totalPlot_->setData(hodographTotal_, false);
   vertPlot_->setData(hodographVert_, false);
   horizPlot_->setData(hodographHoriz_, false);
-  appendToTerminal("Hodographs updated");
+
+  // Автоматически обновить квадратурные составляющие для текущего канала
+  if (ui->total_channel_radio_button->isChecked())
+    updateQuadrature(0);
+  else if (ui->verticy_channel_radio_button->isChecked())
+    updateQuadrature(1);
+  else if (ui->horizontal_channel_radio_button->isChecked())
+    updateQuadrature(2);
 }
 
 void MainWindow::updateQuadrature(int channel) {
+  // Защита от вызова до инициализации
+  if (!iPlot_ || !qPlot_)
+    return;
+
   const std::vector<std::complex<double>> *data = nullptr;
   if (channel == 0)
     data = &hodographTotal_;
@@ -800,7 +866,8 @@ void MainWindow::updateQuadrature(int channel) {
   else
     data = &hodographHoriz_;
   if (!data || data->empty() || currentFreqs_.empty()) {
-    appendToTerminal("No hodograph data. Run 'plot hodograph' first.");
+    // Не выводим сообщение в терминал при автоматическом обновлении, чтобы не
+    // засорять
     return;
   }
   std::vector<std::complex<double>> iPoints, qPoints;
@@ -813,5 +880,4 @@ void MainWindow::updateQuadrature(int channel) {
   }
   iPlot_->setData(iPoints, true);
   qPlot_->setData(qPoints, true);
-  appendToTerminal(QString("Quadrature for channel %1 updated").arg(channel));
 }
