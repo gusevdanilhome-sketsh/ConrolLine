@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(EIGEN_ROOT "C:/Project/Libs/eigen-3.4.0")
 include_directories(${EIGEN_ROOT})
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools Charts)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools Charts Sql)
 
 qt_standard_project_setup()
 
@@ -46,6 +46,17 @@ qt_add_executable(ConrolLine
     utils/pca.h
     utils/whitening.cpp
     utils/whitening.h
+    # Новые файлы
+    utils/model_serializer.cpp
+    utils/model_serializer.h
+    utils/hyperparameter_tuner.cpp
+    utils/hyperparameter_tuner.h
+    utils/feature_importance.cpp
+    utils/feature_importance.h
+    utils/fixed_point_export.cpp
+    utils/fixed_point_export.h
+    utils/experiment_logger.cpp
+    utils/experiment_logger.h
 )
 
 target_include_directories(ConrolLine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -60,6 +71,7 @@ target_link_libraries(ConrolLine
         Qt::Core
         Qt::Widgets
         Qt::Charts
+        Qt::Sql
 )
 
 install(TARGETS ConrolLine

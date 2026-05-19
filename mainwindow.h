@@ -66,6 +66,13 @@ private slots:
   void onFreqParamsChanged();
   void onPlotPCA();
   void onClassifyWithLoss();
+  void onSaveModel();
+  void onLoadModel();
+  void onTuneHyperparams();
+  void onPlotFeatureImportance();
+  void onExportReport();
+  void onExportQ15();
+  void onViewExperiments();
 
 private:
   Ui::MainWindow *ui;

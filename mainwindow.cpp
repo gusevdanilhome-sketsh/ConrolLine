@@ -1,10 +1,16 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "utils/complex_plot.h"
+#include "utils/experiment_logger.h"
+#include "utils/feature_importance.h"
+#include "utils/fixed_point_export.h"
+#include "utils/hyperparameter_tuner.h"
 #include "utils/metrics.h"
+#include "utils/model_serializer.h"
 #include "utils/pca.h"
 #include "utils/sensitivity_analysis.h"
 #include "utils/whitening.h"
+
 #include <QBarSeries>
 #include <QBarSet>
 #include <QCategoryAxis>
@@ -24,7 +30,7 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QScatterSeries>
-#include <QTableWidget>
+#include <QTableWidget> // Добавлено для таблицы журнала экспериментов
 #include <QTextBrowser>
 #include <QVBoxLayout>
 #include <QValueAxis>
@@ -125,6 +131,7 @@ MainWindow::MainWindow(QWidget *parent)
   onToleranceChanged();
   setupCharts();
   setupAdditionalUi();
+  ExperimentLogger::initDatabase("experiments.db");
 
   lr_.setHyperparameters(0.01, 500, 0.01, 32);
   generator_.setNoiseStd(0.05);
@@ -274,6 +281,31 @@ void MainWindow::setupAdditionalUi() {
   buttonLayout->addWidget(classifyLossBtn_);
   buttonLayout->addWidget(exportMetricsBtn_);
   frameLayout->addLayout(buttonLayout, 2, 0, 1, 3);
+  QPushButton *saveModelBtn = new QPushButton("Сохранить модель");
+  QPushButton *loadModelBtn = new QPushButton("Загрузить модель");
+  QPushButton *tuneBtn = new QPushButton("Подбор гиперпараметров");
+  QPushButton *featureImportanceBtn = new QPushButton("Важность признаков");
+  QPushButton *exportReportBtn = new QPushButton("Экспорт отчёта");
+  QPushButton *exportQ15Btn = new QPushButton("Экспорт Q15");
+  QPushButton *viewLogBtn = new QPushButton("Журнал экспериментов");
+  buttonLayout->addWidget(saveModelBtn);
+  buttonLayout->addWidget(loadModelBtn);
+  buttonLayout->addWidget(tuneBtn);
+  buttonLayout->addWidget(featureImportanceBtn);
+  buttonLayout->addWidget(exportReportBtn);
+  buttonLayout->addWidget(exportQ15Btn);
+  buttonLayout->addWidget(viewLogBtn);
+
+  connect(saveModelBtn, &QPushButton::clicked, this, &MainWindow::onSaveModel);
+  connect(loadModelBtn, &QPushButton::clicked, this, &MainWindow::onLoadModel);
+  connect(tuneBtn, &QPushButton::clicked, this, &MainWindow::onTuneHyperparams);
+  connect(featureImportanceBtn, &QPushButton::clicked, this,
+          &MainWindow::onPlotFeatureImportance);
+  connect(exportReportBtn, &QPushButton::clicked, this,
+          &MainWindow::onExportReport);
+  connect(exportQ15Btn, &QPushButton::clicked, this, &MainWindow::onExportQ15);
+  connect(viewLogBtn, &QPushButton::clicked, this,
+          &MainWindow::onViewExperiments);
 
   // Визуализация
   QHBoxLayout *vizLayout = new QHBoxLayout;
@@ -1023,4 +1055,185 @@ void MainWindow::onClassifyWithLoss() {
   auto pred = classifier_->predictWithLoss(testX, lossMatrix);
   printMetricsWithAUC(pred, labels_);
   updateMetricsDisplay();
+}
+
+void MainWindow::onSaveModel() {
+  if (features_.empty() || !classifier_) {
+    appendToTerminal("Нет обученной модели");
+    return;
+  }
+  QString fn =
+      QFileDialog::getSaveFileName(this, "Сохранить модель", "", "*.crmodel");
+  if (fn.isEmpty())
+    return;
+  bool ok = false;
+  if (currentClassifierName_ == "lr")
+    ok = ModelSerializer::saveLogisticRegression(lr_, fn.toStdString());
+  else if (currentClassifierName_ == "lda")
+    ok = ModelSerializer::saveLDA(lda_, fn.toStdString());
+  else if (currentClassifierName_ == "nb")
+    ok = ModelSerializer::saveNaiveBayes(nb_, fn.toStdString());
+  else {
+    appendToTerminal(
+        "Сохранение для байесовского классификатора не реализовано");
+    return;
+  }
+  appendToTerminal(ok ? "Модель сохранена" : "Ошибка сохранения");
+}
+
+void MainWindow::onLoadModel() {
+  QString fn =
+      QFileDialog::getOpenFileName(this, "Загрузить модель", "", "*.crmodel");
+  if (fn.isEmpty())
+    return;
+  bool ok = false;
+  if (currentClassifierName_ == "lr")
+    ok = ModelSerializer::loadLogisticRegression(lr_, fn.toStdString());
+  else if (currentClassifierName_ == "lda")
+    ok = ModelSerializer::loadLDA(lda_, fn.toStdString());
+  else if (currentClassifierName_ == "nb")
+    ok = ModelSerializer::loadNaiveBayes(nb_, fn.toStdString());
+  else {
+    appendToTerminal("Загрузка для байесовского классификатора не реализована");
+    return;
+  }
+  if (ok) {
+    appendToTerminal("Модель загружена");
+    classifier_ = (currentClassifierName_ == "lr")
+                      ? static_cast<ClassifierBase *>(&lr_)
+                  : (currentClassifierName_ == "lda")
+                      ? static_cast<ClassifierBase *>(&lda_)
+                      : static_cast<ClassifierBase *>(&nb_);
+  } else {
+    appendToTerminal("Ошибка загрузки");
+  }
+}
+
+void MainWindow::onTuneHyperparams() {
+  if (features_.empty()) {
+    appendToTerminal("Нет данных для подбора гиперпараметров");
+    return;
+  }
+  if (currentClassifierName_ != "lr") {
+    appendToTerminal(
+        "Подбор гиперпараметров доступен только для логистической регрессии");
+    return;
+  }
+  HyperparameterTuner::Config cfg; // создаём объект с параметрами по умолчанию
+  auto best =
+      HyperparameterTuner::tuneLogisticRegression(features_, labels_, cfg);
+  lr_.setHyperparameters(best.learningRate, best.epochs, best.lambda, 32);
+  appendToTerminal(QString("Лучшие параметры: LR=%1 λ=%2 эпохи=%3 macroF1=%4%")
+                       .arg(best.learningRate)
+                       .arg(best.lambda)
+                       .arg(best.epochs)
+                       .arg(best.bestScore));
+  lr_.train(features_, labels_);
+  appendToTerminal("Модель переобучена с лучшими параметрами");
+}
+
+void MainWindow::onPlotFeatureImportance() {
+  if (currentClassifierName_ != "lr") {
+    appendToTerminal(
+        "Важность признаков доступна только для логистической регрессии");
+    return;
+  }
+  if (features_.empty())
+    return;
+  int nFeat = features_[0].size();
+  auto importance =
+      FeatureImportance::computeLogisticRegressionImportance(lr_, nFeat);
+  // Отобразить топ-20 в диалоге
+  QDialog dlg(this);
+  dlg.setWindowTitle("Важность признаков");
+  QVBoxLayout *layout = new QVBoxLayout(&dlg);
+  QTextEdit *text = new QTextEdit(&dlg);
+  text->setReadOnly(true);
+  QString html = "<b>Топ-20 наиболее информативных признаков:</b><br><br><ol>";
+  int limit = std::min(20, (int)importance.size());
+  for (int i = 0; i < limit; ++i) {
+    html += QString("<li>%1: важность = %2</li>")
+                .arg(importance[i].description)
+                .arg(importance[i].importance, 0, 'e', 4);
+  }
+  html += "</ol>";
+  text->setHtml(html);
+  layout->addWidget(text);
+  dlg.resize(500, 400);
+  dlg.exec();
+}
+
+void MainWindow::onExportReport() {
+  if (features_.empty() || labels_.empty()) {
+    appendToTerminal("Нет данных для отчёта");
+    return;
+  }
+  // Здесь можно использовать QTextDocument и QPdfWriter
+  QString fn =
+      QFileDialog::getSaveFileName(this, "Сохранить отчёт", "", "*.html");
+  if (fn.isEmpty())
+    return;
+  std::vector<int> pred = classifier_->predict(features_);
+  auto metrics = Metrics::computeAll(pred, labels_, 5);
+  // Дополнительно AUC (если есть вероятности)
+  // Формируем HTML
+  QString html =
+      "<html><head><meta charset=\"UTF-8\"><title>Отчёт</title></head><body>";
+  html += "<h1>Отчёт об эксперименте</h1>";
+  html += "<p>Дата: " + QDateTime::currentDateTime().toString() + "</p>";
+  html += "<p><b>Общая точность:</b> " +
+          QString::number(metrics.accuracy, 'f', 2) + "%</p>";
+  html += "<p><b>Macro F1:</b> " + QString::number(metrics.macroF1, 'f', 2) +
+          "%</p>";
+  html += "<h2>Метрики по классам</h2><table "
+          "border=1><tr><th>Класс</th><th>Precision</th><th>Recall</th><th>F1</"
+          "th></tr>";
+  for (int c = 0; c < 5; ++c) {
+    html += QString("<tr><td>%1</td><td>%2</td><td>%3</td><td>%4</td></tr>")
+                .arg(c)
+                .arg(metrics.precision[c], 0, 'f', 1)
+                .arg(metrics.recall[c], 0, 'f', 1)
+                .arg(metrics.f1[c], 0, 'f', 1);
+  }
+  html += "</table></body></html>";
+  QFile file(fn);
+  if (file.open(QIODevice::WriteOnly)) {
+    file.write(html.toUtf8());
+    appendToTerminal("Отчёт сохранён");
+  } else {
+    appendToTerminal("Ошибка сохранения отчёта");
+  }
+}
+
+void MainWindow::onExportQ15() {
+  if (currentClassifierName_ != "lr") {
+    appendToTerminal("Экспорт Q15 доступен только для логистической регрессии");
+    return;
+  }
+  QString fn =
+      QFileDialog::getSaveFileName(this, "Экспорт весов Q15", "", "*.h");
+  if (fn.isEmpty())
+    return;
+  bool ok = FixedPointExport::exportLogisticRegressionQ15(
+      lr_.getWeights(), lr_.getBiases(), fn.toStdString());
+  appendToTerminal(ok ? "Экспорт Q15 выполнен" : "Ошибка экспорта Q15");
+}
+
+void MainWindow::onViewExperiments() {
+  QDialog dlg(this);
+  dlg.setWindowTitle("Журнал экспериментов");
+  QVBoxLayout *layout = new QVBoxLayout(&dlg);
+  QTableWidget *table = new QTableWidget(&dlg);
+  auto rows = ExperimentLogger::fetchAllExperiments();
+  table->setRowCount(rows.size());
+  table->setColumnCount(6);
+  table->setHorizontalHeaderLabels(
+      {"Дата", "Классификатор", "Accuracy", "Macro F1", "AUC", "Параметры"});
+  for (int i = 0; i < rows.size(); ++i) {
+    for (int j = 0; j < 6; ++j)
+      table->setItem(i, j, new QTableWidgetItem(rows[i][j]));
+  }
+  layout->addWidget(table);
+  dlg.resize(800, 400);
+  dlg.exec();
 }
