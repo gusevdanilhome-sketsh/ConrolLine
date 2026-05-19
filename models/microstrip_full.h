@@ -6,7 +6,7 @@
 
 class MicrostripFullModel : public LineCalculator {
 public:
-  using LineCalculator::LineCalculator;
+  MicrostripFullModel() = default;
   std::complex<double> propagationConstant(double f_hz) const;
   std::complex<double> voltageAt(double x_m, double f_hz,
                                  const std::complex<double> &Uinc,

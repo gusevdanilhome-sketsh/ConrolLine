@@ -162,3 +162,30 @@ std::vector<std::vector<double>> LogisticRegression::predictProbabilities(
   }
   return probs;
 }
+
+std::vector<int> LogisticRegression::predictWithLoss(
+    const std::vector<std::vector<double>> &X,
+    const std::vector<std::vector<double>> &lossMatrix) const {
+  auto probs = predictProbabilities(X);
+  std::vector<int> predictions(X.size());
+  int numCl = num_classes_;
+  for (size_t i = 0; i < X.size(); ++i) {
+    std::vector<double> expectedLoss(numCl, 0.0);
+    for (int predClass = 0; predClass < numCl; ++predClass) {
+      for (int trueClass = 0; trueClass < numCl; ++trueClass) {
+        expectedLoss[predClass] +=
+            lossMatrix[predClass][trueClass] * probs[i][trueClass];
+      }
+    }
+    int best = 0;
+    double minLoss = expectedLoss[0];
+    for (int c = 1; c < numCl; ++c) {
+      if (expectedLoss[c] < minLoss) {
+        minLoss = expectedLoss[c];
+        best = c;
+      }
+    }
+    predictions[i] = best;
+  }
+  return predictions;
+}

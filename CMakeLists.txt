@@ -42,6 +42,10 @@ qt_add_executable(ConrolLine
     utils/sensitivity_analysis.h
     utils/metrics.cpp
     utils/metrics.h
+    utils/pca.cpp
+    utils/pca.h
+    utils/whitening.cpp
+    utils/whitening.h
 )
 
 target_include_directories(ConrolLine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

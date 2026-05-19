@@ -11,6 +11,12 @@
 #include "models/microstrip_full.h"
 #include "utils/complex_plot.h"
 #include "utils/metrics.h"
+#include "utils/pca.h"
+#include "utils/sensitivity_analysis.h"
+#include "utils/whitening.h"
+
+// Необходимые заголовки Qt
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QJsonObject>
@@ -18,9 +24,9 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QTextEdit>
+
 #include <string>
 #include <vector>
-
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -47,7 +53,6 @@ private slots:
   void onSetClassifier(const QString &name);
   void updateHodographs();
   void updateQuadrature(int channel);
-
   void onClassifierSelectionChanged(int index);
   void onGenerateDataClicked();
   void onTrainClicked();
@@ -58,6 +63,9 @@ private slots:
   void onPlotConfusionMatrix();
   void onPlotRocCurves();
   void onSensitivityAnalysis();
+  void onFreqParamsChanged();
+  void onPlotPCA();
+  void onClassifyWithLoss();
 
 private:
   Ui::MainWindow *ui;
@@ -75,6 +83,7 @@ private:
   std::vector<std::vector<double>> features_;
   std::vector<int> labels_;
   std::vector<double> currentFreqs_;
+  std::vector<double> freqs_;
   int currentDefectClass_ = 1;
   double currentDefectMagnitude_ = 0.5;
   std::vector<std::complex<double>> hodographTotal_, hodographVert_,
@@ -83,12 +92,16 @@ private:
   ComplexPlot *totalPlot_, *vertPlot_, *horizPlot_;
   ComplexPlot *iPlot_, *qPlot_;
 
+  // Элементы управления, добавленные программно
   QComboBox *classifierCombo_;
   QDoubleSpinBox *learningRateSpin_;
   QSpinBox *epochsSpin_;
   QDoubleSpinBox *lambdaSpin_;
   QDoubleSpinBox *noiseStdSpin_;
   QSpinBox *samplesPerClassSpin_;
+  QDoubleSpinBox *freqStartSpin_;
+  QDoubleSpinBox *freqStopSpin_;
+  QSpinBox *freqPointsSpin_;
   QPushButton *generateBtn_;
   QPushButton *trainBtn_;
   QPushButton *classifyBtn_;
@@ -97,19 +110,31 @@ private:
   QPushButton *plotConfusionBtn_;
   QPushButton *plotRocBtn_;
   QPushButton *sensitivityBtn_;
+  QPushButton *pcaBtn_;
+  QPushButton *classifyLossBtn_;
   QTextEdit *metricsTextEdit_;
+
+  // Дополнительные элементы управления (новые)
+  QCheckBox *quantizeCheckBox_;
+  QSpinBox *adcBitsSpinBox_;
+  QCheckBox *rawAdcCheckBox_;
+  QCheckBox *whitenCheckBox_;
+  QCheckBox *augmentCheckBox_;
+
+  Whitening currentWhitening_;
 
   void updateParametersOutput();
   void updateToleranceOutput();
-  void printMetrics(const std::vector<int> &pred,
-                    const std::vector<int> &trueLabels);
+  void printMetricsWithAUC(const std::vector<int> &pred,
+                           const std::vector<int> &trueLabels);
   void appendToTerminal(const QString &text);
   void appendToOutput(const QString &text);
   void loadSettingsFromJson(const QJsonObject &json);
   QJsonObject saveSettingsToJson() const;
   void setupCharts();
   void setupAdditionalUi();
-  void logDetailedDataInfo(); // объявлено только один раз
+  void logDetailedDataInfo();
+  void updateFreqsFromUi();
 };
 
 #endif

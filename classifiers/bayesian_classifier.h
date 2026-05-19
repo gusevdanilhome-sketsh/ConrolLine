@@ -17,18 +17,20 @@ public:
   predict(const std::vector<std::vector<double>> &X) const override;
   std::vector<std::vector<double>>
   predictProbabilities(const std::vector<std::vector<double>> &X) const;
+  std::vector<int> predictWithLoss(
+      const std::vector<std::vector<double>> &X,
+      const std::vector<std::vector<double>> &lossMatrix) const override;
 
 private:
   struct ClassModel {
-    std::vector<std::vector<double>> featureVectors; // f(y, θ_k)
-    std::vector<double> weights;                     // w_k
+    std::vector<std::vector<double>> featureVectors;
+    std::vector<double> weights;
   };
   std::vector<ClassModel> classModels_;
   int numClasses_ = 5;
   int numFeatures_ = 0;
   double noiseStd_ = 0.05;
   bool trained_ = false;
-
   std::vector<double> priors_;
   void buildClassModels();
   double computeLogLikelihood(const std::vector<double> &x,

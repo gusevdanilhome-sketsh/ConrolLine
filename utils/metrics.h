@@ -12,6 +12,7 @@ struct MetricsResult {
   std::vector<double> recall;
   std::vector<double> f1;
   double macroF1;
+  std::vector<double> auc; // добавили AUC для каждого класса
 };
 
 class Metrics {
@@ -30,6 +31,12 @@ public:
   plotConfusionMatrix(const std::vector<std::vector<int>> &cm, int numClasses);
   static QChartView *
   plotRocCurves(const std::vector<std::vector<double>> &probabilities,
+                const std::vector<int> &trueLabels, int numClasses);
+  // Новые функции для AUC
+  static double computeAUC(const std::vector<double> &scores,
+                           const std::vector<int> &trueBinary);
+  static std::vector<double>
+  computeAllAUC(const std::vector<std::vector<double>> &probabilities,
                 const std::vector<int> &trueLabels, int numClasses);
 };
 

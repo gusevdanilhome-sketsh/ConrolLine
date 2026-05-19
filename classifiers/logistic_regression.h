@@ -15,6 +15,9 @@ public:
   predict(const std::vector<std::vector<double>> &X) const override;
   std::vector<std::vector<double>>
   predictProbabilities(const std::vector<std::vector<double>> &X) const;
+  std::vector<int> predictWithLoss(
+      const std::vector<std::vector<double>> &X,
+      const std::vector<std::vector<double>> &lossMatrix) const override;
 
 private:
   double learning_rate_;
